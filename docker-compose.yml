@@ -3,6 +3,7 @@ name: semantec
 include:
   - path: ./observability/docker-compose.yml
   - path: ./storage/docker-compose.yml
+  - path: ./agents/docker-compose.yaml
 
 # =============================================================================
 # LOGGING TEMPLATE (JSON Driver for Container Logs)
@@ -26,7 +27,7 @@ services:
     logging: *json
     entrypoint: ["/bin/sh", "/permissions.sh"]
     volumes:
-      - ./permissions.sh:/permissions.sh:ro
+      - ./observability/permissions.sh:/permissions.sh:ro
       - /homelab/services:/homelab/services:rw
       - /homelab/observability:/homelab/observability:rw
     network_mode: none
@@ -509,7 +510,7 @@ services:
         condition: service_completed_successfully
     # Install the missing Postgres driver, then start the server
     command: >
-      sh -c "pip install --no-cache-dir mlflow==2.11.3 psycopg2-binary boto3 &&
+      sh -c "pip install --no-cache-dir mlflow==3.12.0 psycopg2-binary boto3 &&
       mlflow server
       --backend-store-uri postgresql://semantec:grossberg@postgres:5432/mlflow
       --artifacts-destination s3://mlflow/artifacts

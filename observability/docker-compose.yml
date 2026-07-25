@@ -438,7 +438,7 @@ services:
         condition: service_started
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=semantec2026
+      - GF_SECURITY_ADMIN_PASSWORD=Semantec1973
       - GF_SERVER_ROOT_URL=https://grafana.semantec.lan
       - GF_SERVER_DOMAIN=grafana.semantec.lan
       - GF_ANALYTICS_REPORTING_ENABLED=false

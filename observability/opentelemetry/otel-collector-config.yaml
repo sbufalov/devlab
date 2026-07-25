@@ -121,15 +121,22 @@ receivers:
           static_configs:
             - targets:
                 # Infrastructure
-                - https://web.semantec.lan
+                - https://portal.semantec.lan
+                - https://devlab.semantec.lan
+                - https://webmail.semantec.lan
                 - https://portainer.semantec.lan
+                - https://gitlab.semantec.lan
+                - https://chat.semantec.lan
+                - https://mattermost.semantec.lan
+                - https://docker.semantec.lan
+                - https://registry.semantec.lan
                 - https://glances.semantec.lan
                 - https://dashy.semantec.lan
-                
-                # Applications
-                - https://gitlab.semantec.lan
-                - https://confluence.semantec.lan
-                - https://webmail.semantec.lan
+                - https://vaultwarden.semantec.lan
+                - https://photoprism.semantec.lan
+                - https://paperless.semantec.lan
+                - https://freshrss.semantec.lan
+                - https://jitsi.semantec.lan
                 
                 # Observability
                 - https://grafana.semantec.lan
@@ -138,14 +145,20 @@ receivers:
                 - https://qryn.semantec.lan
                 - https://pyroscope.semantec.lan
                 - https://alertmanager.semantec.lan
-                - https://status.semantec.lan
+                - https://blackbox.semantec.lan
                 
                 # Storage
                 - https://minio.semantec.lan
                 - https://clickhouse.semantec.lan
+                - https://nextcloud.semantec.lan
                 
-                # ML/AI
+                # Automation
                 - https://mlflow.semantec.lan
+                - https://n8n.semantec.lan
+                - https://dify.semantec.lan
+                - https://onyx.semantec.lan
+                - https://autogen.semantec.lan
+                - https://crewai.semantec.lan
           
           relabel_configs:
             - source_labels: [__address__]

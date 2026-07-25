@@ -95,7 +95,7 @@ registry.semantec.lan {
 # GITLAB - Static Web Hosting
 # =============================================================================
 *.pages.semantec.lan {
-    tls internal
+    tls internal { ca ... }
     reverse_proxy gitlab:80
     log {
         output stdout

@@ -1094,7 +1094,7 @@ services:
     restart: unless-stopped
     logging: *json
     depends_on:
-      jitsi:
+      jitsi-web:
         condition: service_started
       minio-init:
         condition: service_completed_successfully
@@ -1106,7 +1106,6 @@ services:
       - JITSI_URL=https://jitsi.semantec.lan
       # Token or credentials if your Jitsi requires authentication to join
       - JITSI_ROOM_AUTO_JOIN=true              # Automatically joins active rooms via webhooks
-      
       # S3 INTEGRATION
       - AWS_ACCESS_KEY_ID=semantec
       - AWS_SECRET_ACCESS_KEY=grossberg
@@ -1322,8 +1321,8 @@ services:
   # =============================================================================
   mcp:
     build:
-      context: .
-      dockerfile: ./Dockerfile
+      context: ..
+      dockerfile: mcp/Dockerfile
     container_name: mcp
     hostname: mcp
     restart: unless-stopped
@@ -1359,3 +1358,14 @@ services:
       - "otel.metrics.scrape=false"
       - "service.name=mcp"
       - "service.component=ai-orchestration"
+
+networks:
+  frontend:
+    name: semantec-frontend
+    external: true
+  storage:
+    name: semantec-storage
+    external: true
+  observability:
+    name: semantec-observability
+    external: true

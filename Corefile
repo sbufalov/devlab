@@ -19,15 +19,16 @@ semantec.lan {
         192.168.0.22 docker.semantec.lan
         192.168.0.22 registry.semantec.lan
 
-        # Applications
-        192.168.0.22 mail.semantec.lan
-        192.168.0.22 webmail.semantec.lan
-        192.168.0.22 wiki.semantec.lan
-
         # Infrastructure
         192.168.0.22 portainer.semantec.lan
         192.168.0.22 glances.semantec.lan
         192.168.0.22 dashboard.semantec.lan
+        192.168.0.22 vaultwarden.semantec.lan
+        192.168.0.22 photoprism.semantec.lan
+        192.168.0.22 paperless.semantec.lan
+        192.168.0.22 freshrss.semantec.lan
+        192.168.0.22 jitsi.semantec.lan
+        192.168.0.22 nextcloud.semantec.lan
 
         # Observability - Visualization
         192.168.0.22 grafana.semantec.lan
@@ -57,7 +58,7 @@ semantec.lan {
 
         # Observability - Profilings
         192.168.0.22 pyroscope.semantec.lan
-        192.168.0.22 profiles.semantec.lan
+        192.168.0.22 profilings.semantec.lan
 
         # Observability - Alerts
         192.168.0.22 alertmanager.semantec.lan
@@ -75,9 +76,22 @@ semantec.lan {
         192.168.0.22 minio.semantec.lan
         192.168.0.22 s3.semantec.lan
 
-        # ML/AI - Experiment Tracking
+        # Automation
         192.168.0.22 mlflow.semantec.lan
         192.168.0.22 experiments.semantec.lan
+        192.168.0.22 n8n.semantec.lan
+        192.168.0.22 dify.semantec.lan
+        192.168.0.22 onyx.semantec.lan
+        192.168.0.22 autogen.semantec.lan
+        192.168.0.22 crewai.semantec.lan
+
+        # Mail & Wiki & Tasks
+        192.168.0.22 mail.semantec.lan
+        192.168.0.22 webmail.semantec.lan
+        192.168.0.22 outline.semantec.lan
+        192.168.0.22 wiki.semantec.lan
+        192.168.0.22 plane.semantec.lan
+        192.168.0.22 tasks.semantec.lan
 
         fallthrough
     }

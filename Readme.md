@@ -52,10 +52,6 @@ Perform these steps strictly in order during the initial deployment.
 
 **3. Grafana ([Setup](https://grafana.semantec.lan))**
 * Login with `admin` / `Semantec1973`. (Skip password change if prompted).
-* Navigate to **Connections** -> **Data Sources**:
-  * Add **Prometheus**: URL = `http://prometheus:9090`
-  * Add **Loki**: URL = `http://loki:3100`
-  * Add **Tempo**: URL = `http://tempo:3200`
 * Navigate to **Dashboards** -> **Import**: Import ID `1860` (Node Exporter Full).
 * *Note: Refresh Dashy; the system monitor iframe should now render securely.*
 
@@ -100,13 +96,7 @@ This warning triggers because anyone who can reach your GitLab landing page can 
    4. Scroll down and click Save changes (Сохранить изменения).
 Note: Existing users and admins can still manually create or invite new user accounts from the Admin panel.
 
-**5. Confluence ([Setup](https://confluence.semantec.lan))**
-* Select "Trial / Evaluation".
-* When prompted for Database, select **PostgreSQL**.
-  * URL: `jdbc:postgresql://confluence-db:5432/confluence`
-  * User/Pass: Defined in your `./env/confluence-db.env` file.
-
-**6. Mailserver Setup**
+**5. Mailserver Setup**
 * To create the first email account (e.g., admin), run in WSL:
   `docker exec -ti mailserver setup email add admin@semantec.lan <your_password>`
 * Log into [Webmail](https://mail.semantec.lan) using those credentials.

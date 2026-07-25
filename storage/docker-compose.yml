@@ -30,7 +30,7 @@ services:
     env_file:
       - ../env/postgres.env
     volumes:
-      - /homelab/services/postgres/minio/data:/var/lib/postgresql/data:rw
+      - /homelab/services/postgres/data:/var/lib/postgresql/data:rw
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=128m
       - /var/run/postgresql:rw,noexec,nosuid,size=16m
@@ -113,7 +113,7 @@ services:
       - ../env/minio.env
     entrypoint: ["/bin/sh", "/setup.sh"]
     volumes:
-      - ./minio/setup.sh:/minio.sh:ro
+      - ./minio/setup.sh:/setup.sh:ro
       - ./minio/policy.json:/policies/semantec.json:ro
     networks:
       - storage

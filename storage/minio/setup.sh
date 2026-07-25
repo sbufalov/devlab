@@ -146,9 +146,12 @@ echo ""
 echo "=== Configuring Lifecycle Policies ==="
 
 # Pyroscope: delete objects older than 30 days (Modern CLI syntax)
-# Suppress error if the rule already exists
 /usr/bin/mc ilm rule add --expire-days "30" homelab/pyroscope 2>/dev/null || true
 echo "✓ Pyroscope lifecycle policy applied (30-day retention)."
+
+# MLFlow: delete objects older than 60 days (Modern CLI syntax)
+/usr/bin/mc ilm rule add --expire-days "60" homelab/mlflow 2>/dev/null || true
+echo "✓ MLFlow lifecycle policy applied (60-day retention)."
 
 echo "  MLflow artifacts: indefinite retention (no lifecycle policy)."
 echo ""
