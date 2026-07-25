@@ -1,0 +1,173 @@
+/* === BACKGROUND NEBULA === */
+.blur-spots {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+    opacity: var(--nebula-opacity);
+    transition: opacity var(--transition-slow);
+}
+
+.tarantula-nebula {
+    position: absolute;
+    width: 60vw;
+    height: 60vw;
+    top: -15%;
+    left: -10%;
+    mix-blend-mode: screen;
+    pointer-events: none;
+    filter: blur(45px);
+    animation: nebula-drift 25s infinite alternate ease-in-out;
+}
+
+.nebula-insert {
+    position: absolute;
+    mix-blend-mode: screen;
+}
+
+.nebula-insert.dark-blue {
+    top: 10%;
+    left: 20%;
+    width: 70%;
+    height: 70%;
+    background: radial-gradient(ellipse, rgba(10, 40, 120, 0.8) 0%, transparent 70%);
+    border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%;
+    animation: morph-gas 18s infinite alternate-reverse ease-in-out;
+}
+
+.nebula-insert.violet {
+    top: 30%;
+    left: 40%;
+    width: 50%;
+    height: 50%;
+    background: radial-gradient(circle, rgba(140, 20, 200, 0.5) 0%, transparent 60%);
+    border-radius: 60% 40% 30% 70% / 50% 50% 40% 60%;
+    animation: morph-gas 12s infinite alternate ease-in-out;
+}
+
+.nebula-insert.cyan {
+    top: 50%;
+    left: 10%;
+    width: 45%;
+    height: 45%;
+    background: radial-gradient(circle, rgba(0, 200, 255, 0.4) 0%, transparent 70%);
+    border-radius: 30% 70% 50% 50% / 50% 30% 70% 40%;
+    animation: morph-gas-reverse 15s infinite alternate ease-in-out;
+}
+
+@keyframes morph-gas {
+    0% {
+        border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%;
+        transform: rotate(0deg) scale(0.95);
+    }
+    100% {
+        border-radius: 70% 30% 50% 50% / 30% 60% 40% 70%;
+        transform: rotate(15deg) scale(1.1);
+    }
+}
+
+@keyframes morph-gas-reverse {
+    0% {
+        border-radius: 60% 40% 30% 70% / 50% 50% 40% 60%;
+        transform: rotate(0deg) translate(0, 0);
+    }
+    100% {
+        border-radius: 30% 70% 60% 40% / 60% 40% 70% 30%;
+        transform: rotate(-10deg) translate(-5%, 5%);
+    }
+}
+
+@keyframes nebula-drift {
+    0% {
+        transform: translate(0, 0);
+    }
+    100% {
+        transform: translate(2%, 3%);
+    }
+}
+
+/* === GRID BACKGROUND === */
+.grid-bg {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-image: 
+        linear-gradient(var(--bg-grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px);
+    background-size: 40px 40px;
+    z-index: 1;
+    pointer-events: none;
+}
+
+/* === PARTICLE CANVAS === */
+#texture-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    pointer-events: none;
+    opacity: 0.65;
+    transition: opacity var(--transition-base);
+}
+
+/* === SCANLINE EFFECT === */
+.scanline {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        to bottom,
+        transparent 50%,
+        rgba(0, 229, 255, 0.04) 51%,
+        transparent 100%
+    );
+    background-size: 100% 6px;
+    z-index: 3;
+    pointer-events: none;
+    animation: scan 12s linear infinite;
+}
+
+@keyframes scan {
+    0% {
+        transform: translateY(-100%);
+    }
+    100% {
+        transform: translateY(100vh);
+    }
+}
+
+
+/* === SCROLLBARS (themable, follow icon colour scheme) === */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+*::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+*::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+    border-radius: 4px;
+}
+*::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 4px;
+    transition: background 0.2s ease;
+}
+*::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+*::-webkit-scrollbar-corner {
+    background: transparent;
+}

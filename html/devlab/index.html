@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Semantec — Enterprise Homelab Infrastructure</title>
+    
+    <!-- CSS (order matters) -->
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/effects.css">
+    <link rel="stylesheet" href="css/themes.css">
+</head>
+<body data-theme="dark">
+
+    <!-- LOADER -->
+    <div id="loader">
+        <div class="loader-spinner"></div>
+        <div class="loader-text" data-i18n="loading">INITIALIZING SECURE ENVIRONMENT...</div>
+    </div>
+
+    <!-- BACKGROUND EFFECTS -->
+    <div class="blur-spots">
+        <div class="tarantula-nebula">
+            <div class="nebula-insert dark-blue"></div>
+            <div class="nebula-insert violet"></div>
+            <div class="nebula-insert cyan"></div>
+        </div>
+    </div>
+    <div class="grid-bg"></div>
+    <canvas id="texture-canvas"></canvas>
+    <div class="scanline"></div>
+
+    <!-- HEADER -->
+    <header id="header"></header>
+
+    <!-- MAIN LAYOUT -->
+    <div class="layout-container">
+        <!-- SIDEBAR -->
+        <aside class="sidebar" id="sidebar" aria-label="Service navigation">
+            <!-- Floating toggle visible only in collapsed (hamburger) mode -->
+            <button class="sidebar-toggle sidebar-toggle--rail"
+                    id="sidebar-toggle-rail"
+                    type="button"
+                    aria-label="Expand sidebar"
+                    title="Toggle sidebar (H)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+
+            <!-- Hamburger Compact View -->
+            <div class="sidebar-compact" id="sidebar-compact" role="tablist"></div>
+
+            <!-- Full Sidebar Content (search + tree); contains its own inline toggle -->
+            <div class="sidebar-content" id="sidebar-content"></div>
+        </aside>
+
+        <!-- MAIN CONTENT -->
+        <div class="main-wrapper">
+            <main>
+                <nav id="breadcrumbs" class="breadcrumbs" aria-label="Breadcrumb"></nav>
+                <div id="main-header"></div>
+                <div class="services-grid" id="services-grid"></div>
+            </main>
+        </div>
+    </div>
+
+    <!-- DETAIL PANEL (slide-out overlay) -->
+    <div id="detail-overlay" class="detail-overlay" hidden>
+        <div class="detail-backdrop" id="detail-backdrop"></div>
+        <div class="detail-panel" id="detail-panel">
+            <div class="detail-panel-header">
+                <div class="detail-panel-title-group">
+                    <span class="detail-panel-icon" id="detail-panel-icon"></span>
+                    <div>
+                        <div class="detail-panel-title" id="detail-panel-title"></div>
+                        <div class="detail-panel-subtitle" id="detail-panel-subtitle"></div>
+                    </div>
+                </div>
+                <div class="detail-panel-actions">
+                    <button class="detail-note-btn" id="detail-note-btn" type="button" title="Notes">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                    </button>
+                    <button class="detail-close-btn" id="detail-close-btn" type="button" aria-label="Close">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="detail-tabs" id="detail-tabs">
+                <button class="detail-tab active" data-tab="logs" type="button">Logs</button>
+                <button class="detail-tab" data-tab="metrics" type="button">Metrics</button>
+                <button class="detail-tab" data-tab="traces" type="button">Traces</button>
+                <button class="detail-tab" data-tab="container" type="button">Container</button>
+                <button class="detail-tab" data-tab="config" type="button">Config</button>
+                <button class="detail-tab" data-tab="notes" type="button">Notes</button>
+            </div>
+            <div class="detail-content" id="detail-content"></div>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer id="footer"></footer>
+
+    <!-- HELP MODAL -->
+    <div class="modal-overlay" id="shortcut-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" data-i18n="help-title">Keyboard Shortcuts</h3>
+                <button class="modal-close" id="close-modal">×</button>
+            </div>
+            <div class="shortcut-list" id="shortcut-list"></div>
+        </div>
+    </div>
+
+    <!-- COMMAND PALETTE (⌘K / Ctrl-K) -->
+    <div class="palette-overlay" id="palette-overlay" hidden>
+        <div class="palette" role="dialog" aria-label="Command palette">
+            <div class="palette-search">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
+                </svg>
+                <input type="text" id="palette-input" autocomplete="off"
+                       placeholder="Search services, categories, actions…"
+                       aria-label="Command palette search">
+                <span class="kbd palette-hint">ESC</span>
+            </div>
+            <div class="palette-list" id="palette-list" role="listbox"></div>
+            <div class="palette-footer">
+                <span><span class="kbd">↑</span><span class="kbd">↓</span> Navigate</span>
+                <span><span class="kbd">↵</span> Open</span>
+                <span><span class="kbd">⌘</span><span class="kbd">K</span> Toggle</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS (ES6 Modules) -->
+    <script>
+        window.GITLAB_TOKEN = 'glpat-xxxxxxxxxxxx';
+        window.PLANE_TOKEN = 'plane_api_xxxxxxxx';
+        // Optional overrides:
+        // window.QRYN_API_URL = 'https://qryn.semantec.lan/api/v1/query';
+        // window.JAEGER_API_URL = 'https://jaeger.semantec.lan/api';
+        // window.PORTAINER_API_URL = 'https://portainer.semantec.lan/api';
+    </script>
+    <script type="module" src="js/index.js"></script>
+</body>
+</html>

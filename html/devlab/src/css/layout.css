@@ -1,0 +1,480 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background-color: var(--bg-base);
+    color: var(--text-main);
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    font-family: var(--font-main);
+    transition: background-color var(--transition-base), color var(--transition-base);
+}
+
+/* === HEADER === */
+header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-lg) 3%;
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-transform: uppercase;
+}
+
+.logo-mark {
+    width: 28px;
+    height: 28px;
+    stroke: var(--accent-sec);
+}
+
+.logo-text {
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--text-main);
+}
+
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-lg);
+}
+
+.control-group {
+    display: flex;
+    gap: var(--space-sm);
+    align-items: center;
+    /* Vertical gradient delimiter between top-nav links and theme/lang/help/settings */
+    padding-left: var(--space-md);
+    position: relative;
+}
+.control-group::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 12%;
+    bottom: 12%;
+    width: 1px;
+    background: linear-gradient(
+        to bottom,
+        transparent 0%,
+        var(--glass-border) 25%,
+        var(--accent-sec) 50%,
+        var(--glass-border) 75%,
+        transparent 100%
+    );
+    opacity: 0.85;
+}
+
+nav {
+    display: flex;
+    gap: var(--space-md);
+    align-items: center;
+}
+
+nav a, .nav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-family: var(--font-tech);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding: 6px 10px;
+    border-radius: var(--radius-md);
+    border: 1px solid transparent;
+    transition: color var(--transition-fast),
+                background var(--transition-fast),
+                border-color var(--transition-fast);
+}
+.nav-link svg {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    flex-shrink: 0;
+    transition: stroke var(--transition-fast);
+}
+.nav-link:hover,
+.nav-link:focus-visible {
+    color: var(--accent-sec);
+    background: rgba(0, 229, 255, 0.08);
+    border-color: var(--glass-border);
+    outline: none;
+}
+
+/* === MAIN LAYOUT === */
+.layout-container {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+    z-index: 10;
+    min-height: 0;
+}
+
+/* === SIDEBAR ===
+   Two modes only:
+     • expanded  — fixed 320px, glass background
+     • collapsed — 60px hamburger rail, transparent (same as page)
+*/
+.sidebar {
+    --sidebar-width: 320px;
+    --sidebar-collapsed-width: 60px;
+
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-collapsed-width);
+    flex-shrink: 0;
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    border-right: 1px solid var(--glass-border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    transition: width var(--transition-base),
+                background-color var(--transition-base),
+                border-color var(--transition-base);
+}
+
+.sidebar.collapsed {
+    width: var(--sidebar-collapsed-width);
+    /* In collapsed/hamburger mode the rail blends with the page background */
+    background: transparent;
+    backdrop-filter: none;
+    border-right: 1px solid var(--glass-border);
+}
+
+.sidebar.collapsed .sidebar-content {
+    display: none;
+}
+
+.sidebar.collapsed .sidebar-compact {
+    display: flex;
+}
+
+/* === COMPACT (HAMBURGER) RAIL === */
+.sidebar-compact {
+    display: none;
+    flex-direction: column;
+    padding: calc(var(--space-md) + 48px) 0 var(--space-md);
+    overflow-y: auto;
+    height: 100%;
+    gap: var(--space-xs);
+    background: transparent;
+}
+
+.compact-category {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    margin: 0 auto;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    position: relative;
+    transition: background var(--transition-fast),
+                border-color var(--transition-fast);
+    outline: none;
+    background: transparent;            /* match the page when inactive */
+    border: 1px solid transparent;
+    color: var(--text-muted);
+    padding: 0;
+}
+
+.compact-category:hover {
+    background: rgba(0, 229, 255, 0.10);
+    border-color: var(--glass-border);
+}
+
+.compact-category:focus-visible {
+    border-color: var(--accent-sec);
+    box-shadow: 0 0 0 2px rgba(0, 229, 255, 0.25);
+}
+
+.compact-category.active {
+    background: rgba(0, 229, 255, 0.15);
+    border-color: rgba(0, 229, 255, 0.35);
+}
+
+.compact-category.active::before {
+    content: '';
+    position: absolute;
+    left: -8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 60%;
+    background: var(--accent-sec);
+    border-radius: 0 2px 2px 0;
+}
+
+.compact-category svg {
+    width: 20px;
+    height: 20px;
+    stroke: hsl(var(--icon-color-hue), var(--icon-color-sat), var(--icon-color-light));
+}
+
+.compact-category-count {
+    /* hidden in hamburger mode — only the icon is shown */
+    display: none;
+}
+
+/* === SIDEBAR HAMBURGER TOGGLE === */
+/* The toggle has two forms:
+   - inside the search row when sidebar is expanded (inline button)
+   - floating, centered on the rail when sidebar is collapsed (--rail variant)
+*/
+.sidebar-toggle {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    background: rgba(0, 229, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background var(--transition-fast),
+                border-color var(--transition-fast),
+                color var(--transition-fast);
+    padding: 0;
+    color: var(--text-muted);
+}
+
+.sidebar-toggle:hover,
+.sidebar-toggle:focus-visible {
+    background: rgba(0, 229, 255, 0.10);
+    border-color: var(--accent-sec);
+    color: var(--accent-sec);
+    outline: none;
+}
+
+.sidebar-toggle svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    pointer-events: none;
+}
+
+/* Rail variant: only shown when sidebar is collapsed */
+.sidebar-toggle--rail {
+    display: none;
+    position: absolute;
+    top: var(--space-sm);
+    left: 50%;
+    transform: translateX(-50%);
+    background: transparent;
+    border-color: transparent;
+    z-index: 11;
+}
+
+.sidebar.collapsed .sidebar-toggle--rail {
+    display: flex;
+}
+
+.sidebar-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+body.is-resizing { cursor: default !important; user-select: auto !important; }
+
+/* === MAIN CONTENT === */
+.main-wrapper {
+    flex: 1;
+    min-width: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+main {
+    /* min side padding + fluid scaling */
+    padding: var(--space-2xl) clamp(1rem, 3vw, 4rem) 5rem;
+
+    /* fluid max width: grows with viewport, but not infinite */
+    width: min(100%, 2200px);  /* increase/remove this if you truly want unlimited */
+    margin-inline: auto;
+}
+
+h1 {
+    font-family: var(--font-tech);
+    color: var(--text-main);
+    font-size: 3rem;
+    font-weight: 700;
+    line-height: 1.1;
+    margin-bottom: var(--space-lg);
+}
+
+h1 span {
+    display: block;
+}
+
+.cta-text {
+    font-size: 1.15rem;
+    color: var(--text-muted);
+    max-width: 700px;
+    line-height: 1.6;
+    margin-bottom: var(--space-2xl);
+}
+
+/* === FOOTER === */
+footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 100;
+    padding: var(--space-md) 3%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-lg);
+    font-family: var(--font-tech);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid var(--glass-border);
+}
+.footer-copy   { flex-shrink: 0; }
+.sys-info      { flex-shrink: 0; }
+
+.sys-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    flex-wrap: wrap;
+}
+
+.sys-info-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-muted);
+    transition: border-color var(--transition-fast),
+                background var(--transition-fast),
+                color var(--transition-fast);
+}
+.sys-info-item:hover {
+    color: var(--accent-sec);
+    border-color: var(--accent-sec);
+    background: rgba(0, 229, 255, 0.06);
+}
+
+.sys-info-item::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    background: var(--accent-sec);
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 6px rgba(0, 229, 255, 0.6);
+}
+
+.sys-info-key {
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+}
+.sys-info-value {
+    color: var(--text-main);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Uptime item — same shape, but the value can flip to status colors */
+.sys-info-item--uptime { cursor: help; }
+.sys-info-item--uptime .sys-info-value {
+    font-weight: 700;
+}
+#footer-uptime-value[data-health="good"] { color: var(--status-up); }
+#footer-uptime-value[data-health="good"] ~ * { } /* noop placeholder */
+#footer-uptime-value[data-health="warn"] { color: #f59e0b; }
+#footer-uptime-value[data-health="bad"]  { color: var(--status-down); }
+
+/* Recolor the leading dot for the uptime item to match the health value */
+.sys-info-item--uptime:has(#footer-uptime-value[data-health="good"])::before {
+    background: var(--status-up);
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+}
+.sys-info-item--uptime:has(#footer-uptime-value[data-health="warn"])::before {
+    background: #f59e0b;
+    box-shadow: 0 0 6px rgba(245, 158, 11, 0.6);
+}
+.sys-info-item--uptime:has(#footer-uptime-value[data-health="bad"])::before {
+    background: var(--status-down);
+    box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 1400px) {
+    :root {
+        --card-gap: 1.5rem;
+    }
+}
+
+@media (max-width: 1200px) {
+    h1 {
+        font-size: 2.5rem;
+    }
+    .header-controls {
+        gap: var(--space-md);
+    }
+    :root {
+        --card-gap: 1.25rem;
+    }
+}
+
+@media (max-width: 900px) {
+    h1 {
+        font-size: 2rem;
+    }
+    .sys-info {
+        display: none;
+    }
+    nav {
+        display: none;
+    }
+    footer {
+        justify-content: center;
+    }
+    :root {
+        --card-gap: 1rem;
+    }
+
+    .sidebar {
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 100%;
+        z-index: 102;
+        box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
+    }
+
+    .sidebar-toggle {
+        display: flex;
+    }
+}

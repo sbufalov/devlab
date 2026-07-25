@@ -1,0 +1,88 @@
+/* === LIGHT THEME OVERRIDES === */
+[data-theme="light"] {
+    --bg-base: #e8ecf1;
+    --bg-grid: rgba(91, 33, 182, 0.04);
+    --text-main: #0f172a;
+    --text-muted: #334155;
+    --accent-primary: #5b21b6;
+    --accent-sec: #0284c7;
+    --glass-bg: rgba(255, 255, 255, 0.85);
+    --glass-border: rgba(91, 33, 182, 0.25);
+    --menu-bg: rgba(255, 255, 255, 0.98);
+    --menu-border: rgba(91, 33, 182, 0.35);
+}
+
+[data-theme="light"] .blur-spots {
+    opacity: calc(var(--nebula-opacity) * 0.5);
+}
+
+[data-theme="light"] .tarantula-nebula {
+    mix-blend-mode: multiply;
+    opacity: 0.4;
+}
+
+[data-theme="light"] .nebula-insert {
+    mix-blend-mode: multiply;
+}
+
+[data-theme="light"] .nebula-insert.dark-blue {
+    background: radial-gradient(ellipse, rgba(91, 33, 182, 0.3) 0%, transparent 70%);
+}
+
+[data-theme="light"] .nebula-insert.violet {
+    background: radial-gradient(circle, rgba(91, 33, 182, 0.2) 0%, transparent 60%);
+}
+
+[data-theme="light"] .nebula-insert.cyan {
+    background: radial-gradient(circle, rgba(2, 132, 199, 0.2) 0%, transparent 70%);
+}
+
+[data-theme="light"] #texture-canvas {
+    opacity: 0.3;
+}
+
+[data-theme="light"] .service-card {
+    box-shadow: var(--shadow-sm);
+}
+
+[data-theme="light"] .service-card:hover {
+    box-shadow: var(--shadow-md);
+}
+
+[data-theme="light"] .tab-badge-area {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+[data-theme="light"] .category-count {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+/* === THEME ICON VISIBILITY === */
+[data-theme="dark"] .sun-icon {
+    display: none;
+}
+
+[data-theme="dark"] .moon-icon {
+    display: block;
+}
+
+[data-theme="light"] .sun-icon {
+    display: block;
+}
+
+[data-theme="light"] .moon-icon {
+    display: none;
+}
+
+/* === MONOCHROME COLOR SCHEME THEME ADAPTATION === */
+[data-theme="light"] .color-option.mono.active {
+    --icon-color-hue: 0;
+    --icon-color-sat: 0%;
+    --icon-color-light: 0%; /* Black in light mode */
+}
+
+[data-theme="dark"] .color-option.mono.active {
+    --icon-color-hue: 0;
+    --icon-color-sat: 0%;
+    --icon-color-light: 100%; /* White in dark mode */
+}
