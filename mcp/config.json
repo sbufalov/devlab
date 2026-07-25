@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "docker": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-disk-space", "--allow-docker", "@modelcontextprotocol/server-docker"]
+    },
+    "gitlab": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-gitlab"],
+      "env": {
+        "GITLAB_URL": "https://semantec.lan",
+        "GITLAB_PRIVATE_TOKEN": "your_gitlab_master_personal_access_token"
+      }
+    },
+    "cpp-and-python-executor": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"],
+      "description": "Exposes C++ compiler and files. Agents can write .cpp files here, call 'g++' via shell tools, and run native ML/AI analytical code chunks."
+    },
+    "fetch-and-web": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-fetch"],
+      "description": "Allows AI agents to download documentation pages or ML papers from public web directly into your workspace context."
+    }
+  }
+}

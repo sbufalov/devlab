@@ -1,0 +1,512 @@
+{
+    local_certs
+    servers {
+        metrics
+    }
+}
+
+# =============================================================================
+# GLOBAL METRICS ENDPOINT
+# =============================================================================
+:2019 {
+    metrics /metrics
+}
+
+# =============================================================================
+# WEBSITE
+# =============================================================================
+semantec.lan, www.semantec.lan, web.semantec.lan, dev.semantec.lan, lab.semantec.lan, portal.semantec.lan, devlab.semantec.lan {
+    # VictoriaMetrics API & CORS
+    handle /vm/* {
+        uri strip_prefix /vm
+        reverse_proxy victoriametrics:8428
+        header Access-Control-Allow-Origin {header.Origin}
+        header Access-Control-Allow-Methods "GET, OPTIONS"
+        header Access-Control-Allow-Headers "Content-Type"
+    }
+
+    # Alertmanager API & CORS
+    handle /am/* {
+        uri strip_prefix /am
+        reverse_proxy alertmanager:9093
+        header Access-Control-Allow-Origin {header.Origin}
+        header Access-Control-Allow-Methods "GET, OPTIONS"
+        header Access-Control-Allow-Headers "Content-Type"
+    }
+
+    # Frontend
+    reverse_proxy website:80
+    log {
+        output stdout
+        format json
+    }
+}
+
+# =============================================================================
+# GITLAB - Git Repository Manager
+# =============================================================================
+gitlab.semantec.lan {
+    reverse_proxy gitlab:80
+    log {
+        output stdout
+        format json
+    }
+}
+
+# =============================================================================
+# GITLAB - Mattermost Chat
+# =============================================================================
+mattermost.semantec.lan {
+    reverse_proxy gitlab:80
+    log {
+        output stdout
+        format json
+    }
+}
+
+chat.semantec.lan {
+    reverse_proxy gitlab:80
+    log {
+        output stdout
+        format json
+    }
+}
+
+# =============================================================================
+# GITLAB - Docker Container Registry
+# =============================================================================
+docker.semantec.lan {
+    reverse_proxy gitlab:80
+    log {
+        output stdout
+        format json
+    }
+}
+
+registry.semantec.lan {
+    reverse_proxy gitlab:80
+    log {
+        output stdout
+        format json
+    }
+}
+
+# =============================================================================
+# GITLAB - Static Web Hosting
+# =============================================================================
+*.pages.semantec.lan {
+    tls internal
+    reverse_proxy gitlab:80
+    log {
+        output stdout
+        format json
+    }
+}
+
+# =============================================================================
+# ROUNDCUBE WEBMAIL
+# =============================================================================
+webmail.semantec.lan {
+    reverse_proxy roundcube:80
+    log {
+        output stdout
+        format json
+    }
+}
+
+mail.semantec.lan {
+    reverse_proxy roundcube:80
+    log {
+        output stdout
+        format json
+    }
+}
+
+# =============================================================================
+# MANAGEMENT - Wiki & Tasks
+# =============================================================================
+outline.semantec.lan {
+    reverse_proxy outline:3000
+    log {
+        output stdout
+        format json
+    }
+}
+
+wiki.semantec.lan {
+    reverse_proxy outline:3000
+    log {
+        output stdout
+        format json
+    }
+}
+
+plane.semantec.lan {
+    reverse_proxy plane:8000
+    log {
+        output stdout
+        format json
+    }
+}
+
+tasks.semantec.lan {
+    reverse_proxy plane:8000
+    log {
+        output stdout
+        format json
+    }
+}
+
+# =============================================================================
+# INFRASTRUCTURE MANAGEMENT
+# =============================================================================
+portainer.semantec.lan {
+    reverse_proxy portainer:9000
+    log {
+        output stdout
+        format json
+    }
+}
+
+glances.semantec.lan {
+    reverse_proxy glances:61208
+    log {
+        output stdout
+        format json
+    }
+}
+
+dashboard.semantec.lan {
+    reverse_proxy dashy:8080
+    log {
+        output stdout
+        format json
+    }
+}
+
+vaultwarden.semantec.lan {
+    reverse_proxy vaultwarden:80
+    log {
+        output stdout
+        format json
+    }
+}
+
+photoprism.semantec.lan {
+    reverse_proxy photoprism:2342
+    log {
+        output stdout
+        format json
+    }
+}
+
+paperless.semantec.lan {
+    reverse_proxy paperless:8000
+    log {
+        output stdout
+        format json
+    }
+}
+
+freshrss.semantec.lan {
+    reverse_proxy freshrss:80
+    log {
+        output stdout
+        format json
+    }
+}
+
+jitsi.semantec.lan {
+    reverse_proxy jitsi-web:80
+    log {
+        output stdout
+        format json
+    }
+}
+
+nextcloud.semantec.lan {
+    reverse_proxy nextcloud:80
+    log {
+        output stdout
+        format json
+    }
+}
+
+# =============================================================================
+# OBSERVABILITY - VISUALIZATION
+# =============================================================================
+grafana.semantec.lan {
+    reverse_proxy grafana:3000
+    log {
+        output stdout
+        format json
+    }
+}
+
+# =============================================================================
+# OBSERVABILITY - INGESTION (GRPC/HTML)
+# =============================================================================
+grpc.semantec.lan {
+    reverse_proxy h2c://otel:4317
+    log {
+        output stdout
+        format json
+    }
+}
+
+ingest.semantec.lan {
+    reverse_proxy otel:4318
+    log {
+        output stdout
+        format json
+    }
+}
+
+# =============================================================================
+# OBSERVABILITY - OTEL COLLECTOR
+# =============================================================================
+otel.semantec.lan {
+    reverse_proxy otel:13133
+    log {
+        output stdout
+        format json
+    }
+}
+
+collector.semantec.lan {
+    reverse_proxy otel:13133
+    log {
+        output stdout
+        format json
+    }
+}
+
+# =============================================================================
+# OBSERVABILITY - METRICS
+# =============================================================================
+victoria.semantec.lan {
+    reverse_proxy victoriametrics:8428
+    log {
+        output stdout
+        format json
+    }
+}
+
+metrics.semantec.lan {
+    reverse_proxy victoriametrics:8428
+    log {
+        output stdout
+        format json
+    }
+}
+
+prometheus.semantec.lan {
+    redir https://victoria.semantec.lan{uri} permanent
+}
+
+# =============================================================================
+# OBSERVABILITY - LOGS
+# =============================================================================
+qryn.semantec.lan {
+    reverse_proxy qryn:3100
+    log {
+        output stdout
+        format json
+    }
+}
+
+logs.semantec.lan {
+    reverse_proxy qryn:3100
+    log {
+        output stdout
+        format json
+    }
+}
+
+loki.semantec.lan {
+    redir https://qryn.semantec.lan{uri} permanent
+}
+
+# =============================================================================
+# OBSERVABILITY - TRACES
+# =============================================================================
+jaeger.semantec.lan {
+    reverse_proxy jaeger:16686
+    log {
+        output stdout
+        format json
+    }
+}
+
+traces.semantec.lan {
+    reverse_proxy jaeger:16686
+    log {
+        output stdout
+        format json
+    }
+}
+
+tempo.semantec.lan {
+    redir https://jaeger.semantec.lan{uri} permanent
+}
+
+# =============================================================================
+# OBSERVABILITY - PROFILINGS
+# =============================================================================
+pyroscope.semantec.lan {
+    reverse_proxy pyroscope:4040
+    log {
+        output stdout
+        format json
+    }
+}
+
+profilings.semantec.lan {
+    reverse_proxy pyroscope:4040
+    log {
+        output stdout
+        format json
+    }
+}
+
+# =============================================================================
+# OBSERVABILITY - ALERTS
+# =============================================================================
+alertmanager.semantec.lan {
+    reverse_proxy alertmanager:9093
+    log {
+        output stdout
+        format json
+    }
+}
+
+alerts.semantec.lan {
+    reverse_proxy alertmanager:9093
+    log {
+        output stdout
+        format json
+    }
+}
+
+# =============================================================================
+# OBSERVABILITY - QUERIES
+# =============================================================================
+clickhouse.semantec.lan {
+    reverse_proxy clickhouse:8123
+    log {
+        output stdout
+        format json
+    }
+}
+
+queries.semantec.lan {
+    reverse_proxy clickhouse:8123
+    log {
+        output stdout
+        format json
+    }
+}
+
+# =============================================================================
+# OBSERVABILITY - BLACKBOX PROBES
+# =============================================================================
+blackbox.semantec.lan {
+    reverse_proxy blackbox:9115
+    log {
+        output stdout
+        format json
+    }
+}
+
+probe.semantec.lan {
+    reverse_proxy blackbox:9115
+    log {
+        output stdout
+        format json
+    }
+}
+
+# =============================================================================
+# STORAGE - OBJECT STORAGE
+# =============================================================================
+minio.semantec.lan {
+    reverse_proxy minio:9001
+    log {
+        output stdout
+        format json
+    }
+}
+
+s3.semantec.lan {
+    reverse_proxy minio:9001
+    log {
+        output stdout
+        format json
+    }
+}
+
+# =============================================================================
+# AUTOMATION - ML/AI & MCP & Agents
+# =============================================================================
+mlflow.semantec.lan {
+    reverse_proxy mlflow:5000
+    log {
+        output stdout
+        format json
+    }
+}
+
+experiments.semantec.lan {
+    reverse_proxy mlflow:5000
+    log {
+        output stdout
+        format json
+    }
+}
+
+n8n.semantec.lan {
+    reverse_proxy n8n:5678
+    log {
+        output stdout
+        format json
+    }
+}
+
+dify.semantec.lan {
+    # 1. Backend API
+    reverse_proxy /console/api/* dify-api:5001
+    reverse_proxy /api/* dify-api:5001
+    reverse_proxy /v1/* dify-api:5001
+    reverse_proxy /files/* dify-api:5001
+
+    # 2. Next.js frontend
+    reverse_proxy dify-web:3000
+    log {
+        output stdout
+        format json
+    }
+}
+
+onyx.semantec.lan {
+    reverse_proxy onyx-web:3000
+    log {
+        output stdout
+        format json
+    }
+}
+
+autogen.semantec.lan {
+    reverse_proxy autogen-studio:8081
+    log {
+        output stdout
+        format json
+    }
+}
+
+crewai.semantec.lan {
+    reverse_proxy crewai-factory:8501
+    log {
+        output stdout
+        format json
+    }
+}

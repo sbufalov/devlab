@@ -1,0 +1,1361 @@
+name: agents
+
+# =============================================================================
+# LOGGING TEMPLATE (JSON Driver for Container Logs)
+# =============================================================================
+x-logging: &json
+  driver: "json-file"
+  options:
+    max-size: "4m"
+    max-file: "4"
+    labels: "service,component"
+
+services:
+  # =============================================================================
+  # REDIS (Shared Cache & Task Queue Engine)
+  # =============================================================================
+  redis:
+    image: redis:7.2-alpine
+    container_name: redis
+    hostname: redis
+    restart: unless-stopped
+    logging: *json
+    networks:
+      - storage
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 32M
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=redis"
+      - "service.component=storage"
+
+  # =============================================================================
+  # OUTLINE WIKI
+  # =============================================================================
+  outline:
+    image: outlinewiki/outline:0.79.2
+    container_name: outline
+    hostname: outline
+    restart: unless-stopped
+    logging: *json
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+    networks:
+      - frontend
+      - storage
+    environment:
+      - NODE_ENV=production
+      - URL=https://outline.semantec.lan
+      - PORT=3000
+      
+      # DATABASE & CACHE INTEGRATION
+      - DATABASE_URL=postgresql://semantec:grossberg@postgres:5432/outline
+      - REDIS_URL=redis://redis:6379/1
+      
+      # STORAGE INTEGRATION
+      - AWS_ACCESS_KEY_ID=semantec
+      - AWS_SECRET_ACCESS_KEY=grossberg
+      - AWS_S3_ENDPOINT_URL=http://minio:9000
+      - AWS_S3_UPLOAD_BUCKET_NAME=outline
+      - AWS_S3_FORCE_PATH_STYLE=true
+      - MLFLOW_S3_IGNORE_TLS=true
+      - AWS_S3_ACL=private
+      
+      # SECURITY SIGNING KEYS
+      - SECRET_KEY=generate_a_secure_32_byte_hex_string_here
+      - UTILS_SECRET=generate_another_secure_32_byte_hex_string_here
+      
+      # AUTHENTICATION (Using your new GitLab instance)
+      - OIDC_CLIENT_ID=your_gitlab_application_client_id
+      - OIDC_CLIENT_SECRET=your_gitlab_application_client_secret
+      - OIDC_AUTH_URI=https://semantec.lan
+      - OIDC_TOKEN_URI=https://semantec.lan
+      - OIDC_USERINFO_URI=https://semantec.lan
+      - OIDC_USERNAME_CLAIM=username
+      - OIDC_DISPLAY_NAME=GitLab
+      
+      # DISABLE ENTERPRISE / TELEMETRY OVERHEAD
+      - TELEMETRY_ENABLED=false
+      - GOOGLE_ANALYTICS_ID=
+      - SENTRY_DSN=
+      - COLLABORATION_URL= # Disables heavy real-time websockets if not explicitly needed
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 768M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/3000 && exec 3>&-"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=outline"
+      - "service.component=knowledge-base"
+
+  # =============================================================================
+  # PLANE TASKS
+  # =============================================================================
+  plane:
+    image: makeplane/plane:latest
+    container_name: plane
+    hostname: plane
+    restart: unless-stopped
+    logging: *json
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+    networks:
+      - frontend
+      - storage
+    environment:
+      # NETWORK CONFIGURATION
+      - WEB_URL=https://plane.semantec.lan
+      - PORT=8000
+      
+      # CORE APP SETTINGS
+      - DJANGO_SETTINGS_MODULE=config.settings.production
+      - SECRET_KEY=generate_a_secure_plane_django_secret_key_here
+      
+      # DATABASE INTEGRATION
+      - POSTGRES_HOST=postgres
+      - POSTGRES_USER=semantec
+      - POSTGRES_PASSWORD=grossberg
+      - POSTGRES_DB=plane
+      - POSTGRES_PORT=5432
+      
+      # REDIS INTEGRATION
+      - REDIS_URL=redis://redis:6379/2
+      
+      # STORAGE INTEGRATION
+      - AWS_ACCESS_KEY_ID=semantec
+      - AWS_SECRET_ACCESS_KEY=grossberg
+      - AWS_S3_ENDPOINT_URL=http://minio:9000
+      - AWS_S3_BUCKET_NAME=plane
+      - FILE_SIZE_LIMIT=52428800 # 50MB attachment limit
+      
+      # DISABLE ENTERPRISE & TELEMETRY OVERHEAD
+      - ENABLE_TELEMETRY=0
+      - ERROR_LOGGING=0
+      - TRACK_COMMITS=0 # Disables heavy continuous polling, relies on GitLab CI webhooks instead
+      - IS_KUBERNETES=0
+      - SENTRY_DSN=
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1280M
+        reservations:
+          cpus: '0.2'
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8000 && exec 3>&-"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=plane"
+      - "service.component=tasks"
+
+  # =============================================================================
+  # MATTERMOST AI FRAMEWORK (ChatOps AI Agent Gateway)
+  # =============================================================================
+  mattermost-ai-framework:
+    image: mattermost/mattermost-ai-framework:latest
+    container_name: mattermost-ai-framework
+    hostname: mattermost-ai-framework
+    restart: unless-stopped
+    logging: *json
+    depends_on:
+      outline:
+        condition: service_healthy
+      plane:
+        condition: service_healthy
+    networks:
+      - frontend
+      - observability
+    environment:
+      # MATTERMOST CONNECTION
+      # Points to your internal GitLab-managed Mattermost port or public domain
+      - MATTERMOST_URL=http://mattermost.semantec.lan
+      - MATTERMOST_BOT_TOKEN=your_mattermost_bot_token_here
+      
+      # AI BACKEND ROUTING (Using Anthropic/OpenAI or Local Ollama)
+      - LLM_PROVIDER=anthropic # or openai / ollama
+      - ANTHROPIC_API_KEY=your_claude_api_key_here
+      - OPENAI_API_KEY=
+      - OLLAMA_HOST=
+      
+      # MCP SERVERS INTEGRATION (Splicing Outline and Plane into AI context)
+      # Maps available tools so the agent can invoke them dynamically via ChatOps
+      - MCP_SERVERS_CONFIG={"outline":{"url":"http://outline:3000/api/mcp"},"plane":{"url":"http://plane:8000/api/mcp"}}
+      
+      # DISABLE TELEMETRY & CLOUD OVERHEAD
+      - ENABLE_ANALYTICS=false
+      - DEBUG_MODE=false
+      - IS_KUBERNETES=false
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'        # Barely needs any computation, acts as an API proxy
+          memory: 256M       # Strict ceiling for JSON-RPC parsing operations
+        reservations:
+          cpus: '0.05'       # Minimal system footprint
+          memory: 64M        # Real-world baseline usage in idle state
+    healthcheck:
+      # Universal lightweight internal health check or port monitoring
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080 || exit 0 && exec 3>&-"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=mattermost-ai-framework"
+      - "service.component=ai-orchestration"
+
+
+  # =============================================================================
+  # CREWAI FACTORY (Multi-Agent Orchestration & Studio Backend)
+  # =============================================================================
+  crewai-factory:
+    image: crewai/crewai-studio:latest
+    container_name: crewai-factory
+    hostname: crewai-factory
+    restart: unless-stopped
+    logging: *json
+    depends_on:
+      outline:
+        condition: service_healthy
+      plane:
+        condition: service_healthy
+    networks:
+      - frontend
+      - storage
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8501
+      - ENV=production
+      
+      # DATABASE INTEGRATION (Reusing your infrastructure)
+      - DATABASE_URL=postgresql://semantec:grossberg@postgres:5432/crewai_factory
+      
+      # LLM CORE ROUTING (Directing Crew agents to brain models)
+      - OPENAI_API_KEY=your_openai_api_key_if_used
+      - ANTHROPIC_API_KEY=your_anthropic_api_key_if_used
+      # If using local model via Ollama:
+      - OLLAMA_NUM_CTX=8192
+      
+      # MCP CONNECTOR DISCOVERY
+      # Automatically exposes your Homelab's MCP endpoints to CrewAI agents
+      - OUTLINE_MCP_URL=http://outline:3000/api/mcp
+      - PLANE_MCP_URL=http://plane:8000/api/mcp
+      
+      # AGENT MEMORY CONFIGURATION
+      # Enables localized vector memory layout without dedicated heavy Vector DB
+      - CREWAI_STORAGE_PROVIDER=local
+      - MEMORY_DIR=/app/storage/memory
+      
+      # DISABLE ENTERPRISE & TELEMETRY OVERHEAD
+      - CREWAI_TELEMETRY_OPTOUT=true
+      - DISABLE_TELEMETRY=1
+      - SENTRY_DSN=
+    volumes:
+      - /homelab/services/crewai/storage:/app/storage:rw
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1G
+        reservations:
+          cpus: '0.2'
+          memory: 384M
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8501 && exec 3>&-"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=crewai-factory"
+      - "service.component=ai-agents"
+
+  # =============================================================================
+  # CREWAI WORKER (Agent Execution Core)
+  # =============================================================================
+  crewai-worker:
+    image: python:3.13-slim
+    container_name: crewai-worker
+    hostname: crewai-worker
+    restart: unless-stopped
+    logging: *json
+    depends_on:
+      crewai-factory:
+        condition: service_healthy
+    networks:
+      - frontend
+      - storage
+    volumes:
+      - /homelab/services/crewai/worker/data:/app/data:rw
+      - /homelab/services/crewai/agents:/app/agents:ro
+    working_dir: /app
+    command: >
+      sh -c "pip install --no-cache-dir crewai crewai-tools langchain-community &&
+      python -m crewai.cli run-worker --host 0.0.0.0 --port 8001"
+    environment:
+      - ENV=production
+      
+      # AGENT CORE ROUTING (Directing tools and reasoning models)
+      - OPENAI_API_KEY=your_openai_api_key_here
+      - ANTHROPIC_API_KEY=your_anthropic_api_key_here
+      
+      # MCP ENDPOINTS LINKING
+      # Exposes infrastructure tools directly into the agents' execution context
+      - OUTLINE_MCP_URL=http://outline:3000/api/mcp
+      - PLANE_MCP_URL=http://plane:8000/api/mcp
+      
+      # DISABLE TELEMETRY & OVERHEAD
+      # Explicitly blocks heavy background tracking packages and metrics call-backs
+      - CREWAI_TELEMETRY_OPTOUT=true
+      - LANGCHAIN_TRACING_V2=false
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.2'
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8001 && exec 3>&-"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=crewai-worker"
+      - "service.component=ai-agents"
+
+  # =============================================================================
+  # AUTOGEN STUDIO (Microsoft Multi-Agent Prototyping UI)
+  # =============================================================================
+  autogen-studio:
+    image: python:3.13-slim
+    container_name: autogen-studio
+    hostname: autogen-studio
+    restart: unless-stopped
+    logging: *json
+    depends_on:
+      outline:
+        condition: service_healthy
+      plane:
+        condition: service_healthy
+    networks:
+      - frontend
+      - storage
+    volumes:
+      - /homelab/services/autogen/storage:/app/storage:rw
+    working_dir: /app
+    # Installs autogenstudio on boot and starts the server on port 8081
+    command: >
+      sh -c "pip install --no-cache-dir autogenstudio psycopg2-binary &&
+      autogenstudio ui --host 0.0.0.0 --port 8081 --database-uri postgresql+psycopg://semantec:grossberg@postgres:5432/autogen"
+    environment:
+      # API KEYS FOR AGENT REASONING
+      - OPENAI_API_KEY=your_openai_api_key_here
+      - ANTHROPIC_API_KEY=your_anthropic_api_key_here
+      
+      # MCP CONNECTIONS FOR AGENT SKILLS
+      - OUTLINE_MCP_URL=http://outline:3000/api/mcp
+      - PLANE_MCP_URL=http://plane:8000/api/mcp
+      
+      # DISABLE TELEMETRY & OVERHEAD
+      - AUTOGEN_TELEMETRY_OPTOUT=true
+      - DISABLE_TELEMETRY=1
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1G
+        reservations:
+          cpus: '0.2'
+          memory: 384M
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8081 && exec 3>&-"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=autogen-studio"
+      - "service.component=ai-agents"
+
+  # =============================================================================
+  # AUTOGEN WORKER (Agent Code Execution Runtime)
+  # =============================================================================
+  autogen-worker:
+    image: python:3.13-slim
+    container_name: autogen-worker
+    hostname: autogen-worker
+    restart: unless-stopped
+    logging: *json
+    depends_on:
+      autogen-studio:
+        condition: service_healthy
+    networks:
+      - frontend
+      - storage
+    volumes:
+      - /homelab/services/autogen/workspace:/app/workspace:rw
+    working_dir: /app
+    command: >
+      sh -c "pip install --no-cache-dir pyautogen docker tools-mcp &&
+      python -m autogen.runtime.service --host 0.0.0.0 --port 8082"
+    environment:
+      - AUTOGEN_USE_DOCKER=False # Disables heavy Docker-in-Docker looping inside homelab
+      
+      # API & TOOL CONNECTIONS
+      - OPENAI_API_KEY=your_openai_api_key_here
+      - ANTHROPIC_API_KEY=your_anthropic_api_key_here
+      - OUTLINE_MCP_URL=http://outline:3000/api/mcp
+      - PLANE_MCP_URL=http://plane:8000/api/mcp
+      
+      # DISABLE TELEMETRY & OVERHEAD
+      - AUTOGEN_TELEMETRY_OPTOUT=true
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.2'
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8082 && exec 3>&-"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=autogen-worker"
+      - "service.component=ai-agents"
+
+  # =============================================================================
+  # N8N (Workflow Automation & AI Nodes Engine)
+  # =============================================================================
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:1.41.1
+    container_name: n8n
+    hostname: n8n
+    restart: unless-stopped
+    logging: *json
+    user: "node"
+    networks:
+      - frontend
+      - storage
+    environment:
+      - N8N_HOST=n8n.semantec.lan
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=https
+      - NODE_ENV=production
+      - WEBHOOK_URL=https://semantec.lan
+      
+      # DATABASE INTEGRATION (Bypassing SQLite to save NVMe IOPS)
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_USER=semantec
+      - DB_POSTGRESDB_PASSWORD=grossberg
+      - DB_POSTGRESDB_DATABASE=n8n
+      
+      # EXPLICIT RESOURCE OPTIMIZATION
+      - EXECUTIONS_DATA_PRUNE=true # Forces n8n to aggressively clear memory execution logs after completion
+      - EXECUTIONS_DATA_MAX_AGE=48 # Keep execution logs for 48 hours only
+      - EXECUTIONS_DATA_PRUNE_TIMEOUT=3600
+      
+      # DISABLE ENTERPRISE & TELEMETRY OVERHEAD
+      - N8N_DIAGNOSTICS_ENABLED=false
+      - N8N_PERSONALIZATION_ENABLED=false
+      - N8N_TELEMETRY_ENABLED=false
+      - N8N_VERSION_NOTIFICATIONS_ENABLED=false # Disables background phone-home updates check
+    volumes:
+      - /homelab/services/n8n/data:/home/node/.n8n:rw
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1G
+        reservations:
+          cpus: '0.1'
+          memory: 320M
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/5678 && exec 3>&-"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=n8n"
+      - "service.component=automation-orchestration"
+
+  # =============================================================================
+  # WEAVIATE (Dedicated Vector Database for RAG & Knowledge Base)
+  # =============================================================================
+  weaviate:
+    image: semitechnologies/weaviate:1.24.2
+    container_name: weaviate
+    hostname: weaviate
+    restart: unless-stopped
+    logging: *json
+    networks:
+      - storage
+    volumes:
+      - /homelab/services/weaviate/data:/var/lib/weaviate:rw
+    environment:
+      - PERSISTENCE_DATA_PATH=/var/lib/weaviate
+      - QUERY_DEFAULTS_LIMIT=25
+      - DEFAULT_VECTORIZER_MODULE=none  # weaviate does not perform vectorization, only stores vectors
+      - CLUSTER_HOSTNAME=node1
+      
+      # SECURITY OPTIONS
+      - AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=false
+      - AUTHENTICATION_APIKEY_ENABLED=true
+      - AUTHENTICATION_APIKEY_ALLOWED_KEYS=w2il/AZAKW3YHnS7jLUr9GV6oHyRTTCz3vITEvNNwBs= # openssl rand -base64 32
+      - AUTHENTICATION_APIKEY_USERS=semantec
+      - AUTHORIZATION_ADMINLIST_ENABLED=true
+      - AUTHORIZATION_ADMINLIST_USERS=semantec
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1G
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080 && exec 3>&-"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=weaviate"
+      - "service.component=vector-database"
+
+  # =============================================================================
+  # DIFY API SERVER & WORKER (LLMOps Core Logic)
+  # =============================================================================
+  dify-api:
+    image: langgenius/dify-api:0.6.11
+    container_name: dify-api
+    hostname: dify-api
+    restart: unless-stopped
+    logging: *json
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+    networks:
+      - frontend
+      - storage
+    environment:
+      - MODE=api # Runs both API server and background Celery tasks inside one container
+      - CONFIG_PROTECTION=false
+      - SECRET_KEY=generate_a_secure_32_byte_dify_key_here
+      
+      # INFRASTRUCTURE INTEGRATION
+      - DB_USERNAME=semantec
+      - DB_PASSWORD=grossberg
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=dify
+      
+      # REDIS CACHE & CELERY QUEUE
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=3
+      
+      # STORAGE INTEGRATION
+      - STORAGE_TYPE=s3
+      - S3_ENDPOINT_URL=http://minio:9000
+      - S3_ACCESS_KEY=semantec
+      - S3_SECRET_KEY=grossberg
+      - S3_BUCKET_NAME=dify
+      - S3_REGION=us-east-1
+      - TZ=Asia/Novosibirsk
+      
+      # VECTOR DATABASE
+      - VECTOR_STORE=weaviate
+      - WEAVIATE_ENDPOINT=http://weaviate:8080
+      - WEAVIATE_API_KEY=w2il/AZAKW3YHnS7jLUr9GV6oHyRTTCz3vITEvNNwBs=
+      
+      # DISABLE ENTERPRISE & TELEMETRY OVERHEAD
+      - CONSOLE_WEB_URL=https://dify.semantec.lan
+      - API_URL=https://dify.semantec.lan
+      - APP_WEB_URL=https://dify.semantec.lan
+      - SENTRY_DSN=
+      - IS_KUBERNETES=false
+      - TELEMETRY_ENABLED=false
+    volumes:
+      - /homelab/services/dify/storage:/app/storage:rw
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1536M
+        reservations:
+          cpus: '0.2'
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/5001 && exec 3>&-"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=dify-api"
+      - "service.component=ai-orchestration"
+
+  # =============================================================================
+  # DIFY WEB UI (Console Interface)
+  # =============================================================================
+  dify-web:
+    image: langgenius/dify-web:0.6.11
+    container_name: dify-web
+    hostname: dify-web
+    restart: unless-stopped
+    logging: *json
+    depends_on:
+      dify-api:
+        condition: service_healthy
+    networks:
+      - frontend
+    environment:
+      - CONSOLE_API_URL=http://dify-api:5001
+      - APP_API_URL=http://dify-api:5001
+      - PORT=3000
+      - TZ=Asia/Novosibirsk
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/3000 && exec 3>&-"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=dify-web"
+      - "service.component=visualization"
+
+  # =============================================================================
+  # ONYX BACKEND (AI Search & Indexing Engine)
+  # =============================================================================
+  onyx-backend:
+    image: onyxenterprise/onyx-backend:latest
+    container_name: onyx-backend
+    hostname: onyx-backend
+    restart: unless-stopped
+    logging: *json
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+    networks:
+      - frontend
+      - storage
+    environment:
+      # DATABASE INTEGRATION
+      - POSTGRES_HOST=postgres
+      - POSTGRES_USER=semantec
+      - POSTGRES_PASSWORD=grossberg
+      - POSTGRES_DB=onyx
+      
+      # STORAGE INTEGRATION (Reusing your MinIO S3)
+      - FILE_CONNECTOR_STORAGE=s3
+      - S3_ENDPOINT_URL=http://minio:9000
+      - AWS_ACCESS_KEY_ID=semantec
+      - AWS_SECRET_ACCESS_KEY=grossberg
+      - DANSWER_BOT_S3_BUCKET=onyx
+      
+      # AGGRESSIVE HOMELAB RESOURCE OPTIMIZATION
+      - NUM_INDEXING_WORKERS=4
+      - DISABLE_RESOURCE_INTENSIVE_LOGS=true
+      - LOG_LEVEL=warning
+      
+      # DISABLE ENTERPRISE & TELEMETRY OVERHEAD
+      - DISABLE_TELEMETRY=true
+      - TELEMETRY_ENABLED=false
+      - ENABLE_OAUTH=false # Keeps it simple, leverage local/standard auth
+      - IS_KUBERNETES=false
+    volumes:
+      - /homelab/services/onyx/storage:/app/storage:rw
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.2'
+          memory: 1G
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8000 && exec 3>&-"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=onyx-backend"
+      - "service.component=ai-search"
+
+  # =============================================================================
+  # ONYX WEB UI (Search Dashboard)
+  # =============================================================================
+  onyx-web:
+    image: onyxenterprise/onyx-web-server:latest
+    container_name: onyx-web
+    hostname: onyx-web
+    restart: unless-stopped
+    logging: *json
+    depends_on:
+      onyx-backend:
+        condition: service_healthy
+    networks:
+      - frontend
+    environment:
+      - INTERNAL_URL=http://onyx-backend:8000
+      - PORT=3000
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/3000 && exec 3>&-"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=onyx-web"
+      - "service.component=visualization"
+
+  # =============================================================================
+  # NEXTCLOUD (Private Cloud Storage Backend)
+  # =============================================================================
+  nextcloud:
+    image: nextcloud:30.0.5-alpine
+    container_name: nextcloud
+    hostname: nextcloud
+    restart: unless-stopped
+    logging: *json
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - frontend
+      - storage
+    volumes:
+      - /homelab/services/nextcloud/config:/var/www/html/config:rw
+      - /homelab/services/nextcloud/data:/var/www/html/data:rw
+    environment:
+      - TZ=Asia/Novosibirsk
+      
+      # REVERSE PROXY & HTTPS TRUSTING
+      # Crucial parameters to prevent redirection loops behind Caddy proxy
+      - OVERWRITEHOST=nextcloud.semantec.lan
+      - OVERWRITEPROTOCOL=https
+      - TRUSTED_PROXIES=caddy
+      
+      # DATABASE INTEGRATION (Reusing your master Postgres)
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=semantec
+      - POSTGRES_PASSWORD=grossberg
+      - POSTGRES_DB=nextcloud
+      
+      # MEMORY CACHE INTEGRATION (Reusing your master Redis)
+      # Significantly accelerates file listing and locks processing performance
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=4           # Logically separated DB index inside shared Redis instance
+      
+      # RESOURCE MANAGEMENT
+      # Tuning internal PHP-FPM worker constraints for a tight homelab environment
+      - PHP_MEMORY_LIMIT=512M
+      - PHP_UPLOAD_LIMIT=10G  # Sets high allowance for large file transfers
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1G
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/80 && exec 3>&-"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=nextcloud"
+      - "service.component=storage-backend"
+
+  # =============================================================================
+  # VAULTWARDEN (Password Manager Backend)
+  # =============================================================================
+  vaultwarden:
+    image: vaultwarden/server:1.33.2-alpine
+    container_name: vaultwarden
+    hostname: vaultwarden
+    restart: unless-stopped
+    logging: *json
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    networks:
+      - frontend
+      - storage
+    volumes:
+      - /homelab/services/vaultwarden/data:/data:rw
+    environment:
+      - TZ=Asia/Novosibirsk
+      
+      # REVERSE PROXY & DOMAIN CONFIGURATION
+      # Crucial parameters to handle secure HTTPS websocket notifications and web vault
+      - DOMAIN=https://semantec.lan
+      - WEBSOCKET_ENABLED=true
+      
+      # DATABASE INTEGRATION (Reusing your master Postgres)
+      # Fixed: Switched from SQLite file layout to robust relational engine
+      - DATABASE_URL=postgresql://semantec:grossberg@postgres:5432/vaultwarden
+      
+      # SECURITY & ENHANCED HOMELAB CONFIGURATION
+      # Disables public sign-ups after you create your primary master account
+      - SIGNUPS_ALLOWED=true # Set to false AFTER creating your first admin account
+      - INVITATIONS_ALLOWED=false
+      - SHOW_PASSWORD_HINT=false
+      
+      # EXPLICIT RESOURCE MITIGATION
+      # Restricts internal thread pooling worker allocation for light Rust runtime
+      - DATABASE_MAX_CONNECTIONS=10
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/80 && exec 3>&-"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=vaultwarden"
+      - "service.component=security-backend"
+
+  # =============================================================================
+  # PHOTOPRISM (AI Photo Gallery Backend)
+  # =============================================================================
+  photoprism:
+    image: photoprism/photoprism:latest
+    container_name: photoprism
+    hostname: photoprism
+    restart: unless-stopped
+    logging: *json
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    networks:
+      - frontend
+      - storage
+    volumes:
+      - /homelab/services/photoprism/storage:/photoprism/storage:rw
+      - /homelab/media/photos:/photoprism/originals:rw
+    environment:
+      - TZ=Asia/Novosibirsk
+      
+      # NETWORK & PROXY CONFIGURATION
+      - PHOTOPRISM_SITE_URL=https://photoprism.semantec.lan
+      - PHOTOPRISM_HTTP_HOST=0.0.0.0
+      - PHOTOPRISM_HTTP_PORT=2342
+      
+      # SECURITY OPTIONS
+      - PHOTOPRISM_ADMIN_USER=semantec
+      - PHOTOPRISM_ADMIN_PASSWORD=grossberg
+      - PHOTOPRISM_PUBLIC=false # Enforces strict password protection on entry
+      
+      # DATABASE INTEGRATION
+      - PHOTOPRISM_DATABASE_DRIVER=postgres
+      - PHOTOPRISM_DATABASE_SERVER=postgres:5432
+      - PHOTOPRISM_DATABASE_NAME=photoprism
+      - PHOTOPRISM_DATABASE_USER=semantec
+      - PHOTOPRISM_DATABASE_PASSWORD=grossberg
+      
+      # AGGRESSIVE RESOURCE & AI MITIGATION FOR HOMELAB
+      # Prevents background workers from consuming all available system memory
+      - PHOTOPRISM_WORKERS=2                   # Restricts background indexing threads to 2
+      - PHOTOPRISM_DISABLE_CHANNELS=true       # Disables WebDAV/external cloud sync overhead
+      - PHOTOPRISM_DISABLE_WEBDAV=true
+      - PHOTOPRISM_DISABLE_TENSORFLOW=false    # Keep true if you want faces, but false saves huge RAM.
+                                               # Change to 'true' to completely turn off facial recognition.
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.2'
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/2342 && exec 3>&-"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=photoprism"
+      - "service.component=media-backend"
+
+  # =============================================================================
+  # PAPERLESS-NGX (Document Management System with OCR)
+  # =============================================================================
+  paperless:
+    image: ghcr.io/paperless-ngx/paperless-ngx:2.11.3
+    container_name: paperless
+    hostname: paperless
+    restart: unless-stopped
+    logging: *json
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - frontend
+      - storage
+    volumes:
+      - /homelab/services/paperless/data:/usr/src/paperless/data:rw
+      - /homelab/services/paperless/media:/usr/src/paperless/media:rw
+      - /homelab/services/paperless/consume:/usr/src/paperless/consume:rw
+      - /homelab/services/paperless/export:/usr/src/paperless/export:rw
+    environment:
+      - TZ=Asia/Novosibirsk
+      
+      # NETWORK & PROXY CONFIGURATION
+      - PAPERLESS_URL=https://paperless.semantec.lan
+      - PAPERLESS_PORT=8000
+      
+      # DATABASE INTEGRATION
+      - PAPERLESS_DBENGINE=postgresql
+      - PAPERLESS_DBHOST=postgres
+      - PAPERLESS_DBPORT=5432
+      - PAPERLESS_DBUSER=semantec
+      - PAPERLESS_DBPASS=grossberg
+      - PAPERLESS_DBNAME=paperless
+      
+      # MEMORY CACHE & TASK QUEUE
+      # Used by Paperless for background multi-threaded asynchronous indexing tasks
+      - PAPERLESS_REDIS=redis://redis:6379/5    # Logically separated DB index inside shared Redis
+      
+      # AGGRESSIVE OCR & RESOURCE MITIGATION FOR HOMELAB
+      # Optimizing Tesseract and Ghostscript behavior to stay within strict limits
+      - PAPERLESS_OCR_LANGUAGE=rus+eng          # Installs both Russian and English dictionary layers
+      - PAPERLESS_TASK_WORKERS=2                # Restricts heavy parallel document parsing loops to 2
+      - PAPERLESS_THREADS_PER_WORKER=1
+      - PAPERLESS_OCR_MODE=skip                 # Skips OCR processing if digital text layer already exists
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1G
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8000 && exec 3>&-"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=paperless"
+      - "service.component=media-backend"
+
+  # =============================================================================
+  # FRESHRSS (RSS Feed Aggregator Backend)
+  # =============================================================================
+  freshrss:
+    image: freshrss/freshrss:1.24.3-alpine
+    container_name: freshrss
+    hostname: freshrss
+    restart: unless-stopped
+    logging: *json
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    networks:
+      - frontend
+      - storage
+    volumes:
+      - /homelab/services/freshrss/data:/var/www/FreshRSS/data:rw
+    environment:
+      - TZ=Asia/Novosibirsk
+      
+      # NETWORK & CRON CONFIGURATION
+      # Crucial parameters to handle secure routing and automated feed refreshing
+      - CRON_MIN=*/20                          # Automatically updates RSS feeds in the background every 20 minutes
+      
+      # DATABASE INTEGRATION
+      # FreshRSS configures its internal connection details through the Web-UI on first boot,
+      # but pre-allocating the correct driver metadata ensures smooth integration.
+      - FRESHRSS_ENV=production
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/80 && exec 3>&-"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=freshrss"
+      - "service.component=media-backend"
+
+  # =============================================================================
+  # JITSI AUDIO RECORDER BOT
+  # =============================================================================
+  jitsi-audio-bot:
+    image: ghcr.io/lyatiss/jitsi-meet-audio-recorder:latest
+    container_name: jitsi-audio-bot
+    hostname: jitsi-audio-bot
+    restart: unless-stopped
+    logging: *json
+    depends_on:
+      jitsi:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
+    networks:
+      - frontend
+      - storage
+    environment:
+      - TZ=Asia/Novosibirsk
+      - JITSI_URL=https://jitsi.semantec.lan
+      # Token or credentials if your Jitsi requires authentication to join
+      - JITSI_ROOM_AUTO_JOIN=true              # Automatically joins active rooms via webhooks
+      
+      # S3 INTEGRATION
+      - AWS_ACCESS_KEY_ID=semantec
+      - AWS_SECRET_ACCESS_KEY=grossberg
+      - AWS_S3_ENDPOINT_URL=http://minio:9000
+      - AWS_S3_BUCKET_NAME=jitsi
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080 && exec 3>&-"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # =============================================================================
+  # WHISPER API (High-Performance AI Transcription Engine)
+  # =============================================================================
+  whisper-api:
+    image: fedirz/faster-whisper-server:latest-cpu # CPU-optimized compiled C++ version
+    container_name: whisper-api
+    hostname: whisper-api
+    restart: unless-stopped
+    logging: *json
+    networks:
+      - frontend
+      - storage
+    volumes:
+      - /homelab/services/whisper/models:/root/.cache/huggingface:rw
+    environment:
+      - TZ=Asia/Novosibirsk
+      # Tiny or Base models are ideal for homelab CPU (transcribes faster than real-time)
+      - WHISPER_MODEL=base
+      - WHISPER_LANGUAGE=ru                    # Forces internal optimization for Russian speech
+      - WHISPER_THREADS=2                      # Restricts computation to exactly 2 cores
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.1'
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8000 && exec 3>&-"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=whisper-api"
+      - "service.component=ai-speech"
+
+  # =============================================================================
+  # JITSI MEET - PROSODY (XMPP Signaling & Room Coordinator)
+  # =============================================================================
+  jitsi-prosody:
+    image: jitsi/prosody:stable-9654
+    container_name: jitsi-prosody
+    hostname: jitsi-prosody
+    restart: unless-stopped
+    logging: *json
+    networks:
+      - frontend
+    environment:
+      - TZ=Asia/Novosibirsk
+      - XMPP_DOMAIN=jitsi.semantec.lan
+      - PUBLIC_URL=https://jitsi.semantec.lan
+      - AUTH_TYPE=anonymous
+      - JICOFO_AUTH_PASSWORD=grossberg
+      - JVB_AUTH_PASSWORD=grossberg
+      - JICOFO_COMPONENT_SECRET=grossberg
+    volumes:
+      - /homelab/services/jitsi/prosody/config:/config:rw
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/5222 && exec 3>&-"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # =============================================================================
+  # JITSI MEET - JICOFO (Conference Focus Manager)
+  # =============================================================================
+  jitsi-jicofo:
+    image: jitsi/jicofo:stable-9654
+    container_name: jitsi-jicofo
+    hostname: jitsi-jicofo
+    restart: unless-stopped
+    logging: *json
+    depends_on:
+      jitsi-prosody:
+        condition: service_healthy
+    networks:
+      - frontend
+    environment:
+      - TZ=Asia/Novosibirsk
+      - XMPP_SERVER=jitsi-prosody
+      - XMPP_DOMAIN=jitsi.semantec.lan
+      - JICOFO_AUTH_USER=jicofo
+      - JICOFO_AUTH_PASSWORD=grossberg
+      - JICOFO_COMPONENT_SECRET=grossberg
+    volumes:
+      - /homelab/services/jitsi/jicofo/config:/config:rw
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8888 && exec 3>&-"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # =============================================================================
+  # JITSI MEET - JVB (Java Video Bridge - Media Stream Router)
+  # =============================================================================
+  jitsi-jvb:
+    image: jitsi/jvb:stable-9654
+    container_name: jitsi-jvb
+    hostname: jitsi-jvb
+    restart: unless-stopped
+    logging: *json
+    depends_on:
+      jitsi-prosody:
+        condition: service_healthy
+    ports:
+      # REQUIRED: Standard WebRTC media ports exposed directly to the host
+      - "10000:10000/udp"
+    networks:
+      - frontend
+    environment:
+      - TZ=Asia/Novosibirsk
+      - XMPP_SERVER=jitsi-prosody
+      - XMPP_DOMAIN=jitsi.semantec.lan
+      - JVB_AUTH_USER=jvb
+      - JVB_AUTH_PASSWORD=grossberg
+      # Change this to the public IP of your homelab server host if accessing from outside (.lan)
+      - JVB_ADVERTISE_IPS=192.168.0.22 
+    volumes:
+      - /homelab/services/jitsi/jvb/config:/config:rw
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # =============================================================================
+  # JITSI MEET - WEB UI (Next.js Application Core)
+  # =============================================================================
+  jitsi-web:
+    image: jitsi/web:stable-9654
+    container_name: jitsi-web
+    hostname: jitsi-web
+    restart: unless-stopped
+    logging: *json
+    depends_on:
+      jitsi-prosody:
+        condition: service_healthy
+    networks:
+      - frontend
+    environment:
+      - TZ=Asia/Novosibirsk
+      - XMPP_SERVER=jitsi-prosody
+      - XMPP_DOMAIN=jitsi.semantec.lan
+      - PUBLIC_URL=https://jitsi.semantec.lan
+    volumes:
+      - /homelab/services/jitsi/web/config:/config:rw
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/80 && exec 3>&-"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=jitsi-web"
+      - "service.component=media-backend"
+
+  # =============================================================================
+  # UNIFIED MCP HUB (Multi-Server AI Tools Gateway & Sandbox)
+  # =============================================================================
+  mcp:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    container_name: mcp
+    hostname: mcp
+    restart: unless-stopped
+    logging: *json
+    depends_on:
+      gitlab:
+        condition: service_healthy
+    networks:
+      - frontend
+      - storage
+    ports:
+      - "3010:3010"       # Public SSE port for external clients (Cursor / Claude Desktop)
+    volumes:
+      - ./mcp/config.json:/app/mcp-config.json:ro
+      - /homelab/services/autogen/workspace:/workspace:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: mcp-inspector --config /app/mcp-config.json --port 3010
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.05'
+          memory: 180M
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/3010 && exec 3>&-"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=mcp"
+      - "service.component=ai-orchestration"

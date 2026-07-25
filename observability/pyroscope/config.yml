@@ -1,0 +1,80 @@
+# =============================================================================
+# PYROSCOPE CONFIGURATION (v2 Architecture with S3 Backend)
+# =============================================================================
+
+# Server configuration
+server:
+  http_listen_address: "0.0.0.0"
+  http_listen_port: 4040
+  grpc_listen_address: "0.0.0.0"
+  grpc_listen_port: 4041
+  log_level: info
+  log_format: json
+
+# Storage configuration (S3-backed)
+storage:
+  backend: s3
+  s3:
+    endpoint: minio:9000
+    bucket_name: pyroscope
+    access_key_id: ${AWS_ACCESS_KEY_ID}
+    secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+    insecure: true
+    signature_version: v4
+    path_style: true
+    
+  # Local cache for hot data
+  filesystem:
+    dir: /var/lib/pyroscope
+
+# Query frontend configuration
+query_frontend:
+  address: "0.0.0.0:4040"
+  max_retries: 3
+  query_timeout: 2m
+
+# Ingester configuration
+ingester:
+  lifecycler:
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+  max_chunk_age: 2h
+  flush_check_period: 30s
+
+# Distributor configuration
+distributor:
+  ring:
+    kvstore:
+      store: inmemory
+
+# Compactor configuration
+compactor:
+  compaction_interval: 15m
+  data_dir: /var/lib/pyroscope/compactor
+  retention_enabled: true
+  retention_period: 720h  # 30 days
+
+# Limits configuration
+limits:
+  max_query_lookback: 720h
+  max_query_length: 24h
+  max_query_parallelism: 10
+  ingestion_rate_mb: 100
+  ingestion_burst_size_mb: 200
+
+# Memberlist (for clustering, not used in single instance)
+memberlist:
+  join_members: []
+  abort_if_cluster_join_fails: false
+
+# Analytics disabled
+analytics:
+  enabled: false
+
+# Self-monitoring
+self_profiling:
+  enabled: true
+  mutex_profiling_enabled: true
+  block_profiling_enabled: true

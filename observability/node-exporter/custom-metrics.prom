@@ -1,0 +1,3 @@
+# HELP custom_gpu_temperature_celsius GPU temperature
+# TYPE custom_gpu_temperature_celsius gauge
+custom_gpu_temperature_celsius{gpu="0"} 0

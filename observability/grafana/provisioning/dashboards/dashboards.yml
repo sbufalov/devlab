@@ -1,0 +1,74 @@
+# =============================================================================
+# GRAFANA DASHBOARDS CONFIGURATION
+# =============================================================================
+
+apiVersion: 1
+
+providers:
+  # System & Infrastructure Dashboards
+  #   Canonical: Node Exporter Full (ID 1860)
+  #   Shows: CPU, RAM, Disk I/O, Network for your host machine.
+  - name: 'System'
+    orgId: 1
+    folder: 'System'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/system
+      foldersFromFilesStructure: true
+
+  # Docker & Containers
+  #   Canonical: cAdvisor (ID 14282)
+  #   Shows: Per-container CPU/RAM usage.
+  - name: 'Docker'
+    orgId: 1
+    folder: 'Docker'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/docker
+
+  # Observability Stack
+  #   - Grafana Health (Internal Metrics): ID 3590
+  #   Shows: Grafana's own health and performance.
+  #   - VictoriaMetrics Health: ID 10229
+  #   Shows: Time-series ingestion rates and database size.
+  #   - OpenTelemetry Collector Health: ID 15983
+  #   Shows: The ping latency and up/down status of all your services.
+  #   - Prometheus Blackbox Exporter: ID 13659
+  #   Shows: Global Uptime, HTTP Response Times, SSL Certificate Expiry
+  - name: 'Observability'
+    orgId: 1
+    folder: 'Observability'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/observability
+
+  # ML/AI Monitoring
+  - name: 'ML & AI'
+    orgId: 1
+    folder: 'ML & AI'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/ml
+
+  # Application Monitoring
+  - name: 'Applications'
+    orgId: 1
+    folder: 'Applications'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/applications

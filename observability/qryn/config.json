@@ -1,0 +1,27 @@
+{
+  "database": {
+    "host": "clickhouse",
+    "port": 8123,
+    "database": "semantec",
+    "compression": true
+  },
+  "server": {
+    "port": 3100,
+    "host": "0.0.0.0",
+    "log_level": "info"
+  },
+  "limits": {
+    "max_query_length": "721h",
+    "max_query_lookback": "721h",
+    "max_entries_limit_per_query": 5000,
+    "max_streams_matchers_per_query": 1000
+  },
+  "retention": {
+    "period": "14d"
+  },
+  "features": {
+    "tempo_compatible": true,
+    "loki_compatible": true,
+    "prometheus_compatible": false
+  }
+}

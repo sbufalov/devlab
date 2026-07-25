@@ -1,0 +1,108 @@
+# =============================================================================
+# LOCAL DOMAIN - semantec.lan
+# =============================================================================
+semantec.lan {
+    hosts {
+        # Website
+        192.168.0.22 semantec.lan
+        192.168.0.22 www.semantec.lan
+        192.168.0.22 web.semantec.lan
+        192.168.0.22 dev.semantec.lan
+        192.168.0.22 lab.semantec.lan
+        192.168.0.22 portal.semantec.lan
+        192.168.0.22 devlab.semantec.lan
+
+        # Gitlab
+        192.168.0.22 gitlab.semantec.lan
+        192.168.0.22 chat.semantec.lan
+        192.168.0.22 mattermost.semantec.lan
+        192.168.0.22 docker.semantec.lan
+        192.168.0.22 registry.semantec.lan
+
+        # Applications
+        192.168.0.22 mail.semantec.lan
+        192.168.0.22 webmail.semantec.lan
+        192.168.0.22 wiki.semantec.lan
+
+        # Infrastructure
+        192.168.0.22 portainer.semantec.lan
+        192.168.0.22 glances.semantec.lan
+        192.168.0.22 dashboard.semantec.lan
+
+        # Observability - Visualization
+        192.168.0.22 grafana.semantec.lan
+
+        # Observability - Ingestion
+        192.168.0.22 grpc.semantec.lan
+        192.168.0.22 ingest.semantec.lan
+
+        # Observability - OTEL Collector
+        192.168.0.22 otel.semantec.lan
+        192.168.0.22 collector.semantec.lan
+
+        # Observability - Metrics
+        192.168.0.22 victoria.semantec.lan
+        192.168.0.22 metrics.semantec.lan
+        192.168.0.22 prometheus.semantec.lan
+
+        # Observability - Logs
+        192.168.0.22 qryn.semantec.lan
+        192.168.0.22 logs.semantec.lan
+        192.168.0.22 loki.semantec.lan
+
+        # Observability - Traces
+        192.168.0.22 jaeger.semantec.lan
+        192.168.0.22 traces.semantec.lan
+        192.168.0.22 tempo.semantec.lan
+
+        # Observability - Profilings
+        192.168.0.22 pyroscope.semantec.lan
+        192.168.0.22 profiles.semantec.lan
+
+        # Observability - Alerts
+        192.168.0.22 alertmanager.semantec.lan
+        192.168.0.22 alerts.semantec.lan
+
+        # Observability - Queries
+        192.168.0.22 clickhouse.semantec.lan
+        192.168.0.22 queries.semantec.lan
+
+        # Observability - Blackbox Probes
+        192.168.0.22 blackbox.semantec.lan
+        192.168.0.22 probe.semantec.lan
+
+        # Storage - Object Storage
+        192.168.0.22 minio.semantec.lan
+        192.168.0.22 s3.semantec.lan
+
+        # ML/AI - Experiment Tracking
+        192.168.0.22 mlflow.semantec.lan
+        192.168.0.22 experiments.semantec.lan
+
+        fallthrough
+    }
+    log
+    errors
+}
+
+# =============================================================================
+# SUB-DOMAINS - Redirect to single IP
+# =============================================================================
+pages.semantec.lan {
+    template ANY A {
+        answer "{{ .Name }} 60 IN A 192.168.0.22"
+    }
+}
+
+# =============================================================================
+# EXTERNAL DOMAINS - Forward to Public DNS
+# =============================================================================
+. {
+    forward . 8.8.8.8 1.1.1.1
+    cache 30
+    log
+    errors
+
+    # Expose metrics on port 9153 for all zones
+    prometheus 0.0.0.0:9153
+}

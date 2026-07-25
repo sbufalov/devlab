@@ -1,0 +1,132 @@
+# =============================================================================
+# ALERTMANAGER CONFIGURATION (v0.28.1+ Compatible)
+# =============================================================================
+
+global:
+  # Resolve timeout for alerts
+  resolve_timeout: 5m
+  
+  # SMTP configuration (optional - update with your mail server)
+  smtp_smarthost: 'mailserver:587'
+  smtp_from: 'alertmanager@semantec.lan'
+  smtp_auth_username: 'alertmanager@semantec.lan'
+  smtp_auth_password: 'your-password-here'
+  smtp_require_tls: true
+
+# Templates for notifications
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# Route tree for alert distribution
+route:
+  # Default receiver for uncategorized alerts
+  receiver: 'default'
+  
+  # Group alerts by these labels
+  group_by: ['alertname', 'cluster', 'service']
+  
+  # How long to wait before sending initial notification
+  group_wait: 10s
+  
+  # How long to wait before sending notification about new alerts in group
+  group_interval: 10s
+  
+  # How long to wait before re-sending notification
+  repeat_interval: 12h
+  
+  # Child routes (UPDATED: match changed to matchers)
+  routes:
+    # Critical alerts - immediate notification
+    - matchers:
+        - severity = critical
+      receiver: critical-alerts
+      group_wait: 0s
+      repeat_interval: 4h
+      continue: true
+    
+    # Infrastructure alerts
+    - matchers:
+        - component = infrastructure
+      receiver: infrastructure-alerts
+      group_interval: 5m
+    
+    # Storage alerts
+    - matchers:
+        - component = storage
+      receiver: storage-alerts
+      group_interval: 5m
+    
+    # ML/AI alerts
+    - matchers:
+        - component = ml
+      receiver: ml-alerts
+      group_interval: 15m
+    
+    # Observability stack alerts
+    - matchers:
+        - component = observability
+      receiver: observability-alerts
+      group_interval: 10m
+
+# Inhibition rules (UPDATED: match syntax modernized)
+inhibit_rules:
+  # Suppress warning if critical alert is firing
+  - source_matchers: [ severity = critical ]
+    target_matchers: [ severity = warning ]
+    equal: ['alertname', 'service', 'instance']
+  
+  # Suppress disk alerts if host is down
+  - source_matchers: [ alertname = HostDown ]
+    target_matchers: 
+      - alertname =~ "^(DiskSpace|DiskIO).*"
+    equal: ['instance']
+
+# Alert receivers
+receivers:
+  # Default receiver - console logging
+  - name: 'default'
+    webhook_configs:
+      - url: 'http://127.0.0'
+        send_resolved: true
+
+  # Critical alerts - multiple channels
+  - name: 'critical-alerts'
+    # Email notification
+    email_configs:
+      - to: 'admin@semantec.lan'
+        send_resolved: true
+        headers:
+          subject: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
+        html: '{{ template "email.html" . }}'
+    
+  # Infrastructure alerts
+  - name: 'infrastructure-alerts'
+    email_configs:
+      - to: 'infra@semantec.lan'
+        send_resolved: true
+        headers:
+          subject: '⚠️  Infrastructure Alert: {{ .GroupLabels.alertname }}'
+
+  # Storage alerts
+  - name: 'storage-alerts'
+    email_configs:
+      - to: 'storage@semantec.lan'
+        send_resolved: true
+        headers:
+          subject: '💾 Storage Alert: {{ .GroupLabels.alertname }}'
+
+  # ML/AI alerts
+  - name: 'ml-alerts'
+    email_configs:
+      - to: 'ml-team@semantec.lan'
+        send_resolved: true
+        headers:
+          subject: '🤖 ML Alert: {{ .GroupLabels.alertname }}'
+
+  # Observability alerts
+  - name: 'observability-alerts'
+    email_configs:
+      - to: 'observability@semantec.lan'
+        send_resolved: true
+        headers:
+          subject: '📊 Observability Alert: {{ .GroupLabels.alertname }}'

@@ -1,0 +1,212 @@
+# =============================================================================
+# BLACKBOX EXPORTER CONFIGURATION
+# =============================================================================
+# Probes endpoints using HTTP, HTTPS, TCP, ICMP, and DNS protocols
+# Used for synthetic monitoring and uptime checks
+
+modules:
+  # ---------------------------------------------------------------------------
+  # HTTP Probes
+  # ---------------------------------------------------------------------------
+  
+  # HTTP 2xx - Simple GET request expecting 2xx response
+  http_2xx:
+    prober: http
+    timeout: 10s
+    http:
+      valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+      valid_status_codes: []  # Defaults to 2xx
+      method: GET
+      fail_if_ssl: false
+      fail_if_not_ssl: false
+      follow_redirects: true
+      preferred_ip_protocol: "ip4"
+      ip_protocol_fallback: false
+
+  # HTTP 2xx with SSL verification (for HTTPS endpoints)
+  http_2xx_ssl:
+    prober: http
+    timeout: 10s
+    http:
+      valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+      valid_status_codes: []
+      method: GET
+      fail_if_ssl: false
+      fail_if_not_ssl: true
+      follow_redirects: true
+      tls_config:
+        insecure_skip_verify: true  # Accept self-signed certs (local_certs)
+      preferred_ip_protocol: "ip4"
+
+  # HTTP POST with JSON body
+  http_post_json:
+    prober: http
+    timeout: 10s
+    http:
+      method: POST
+      headers:
+        Content-Type: application/json
+      body: '{}'
+      valid_status_codes: [200, 201, 202]
+
+  # HTTP with basic auth
+  http_2xx_basic_auth:
+    prober: http
+    timeout: 10s
+    http:
+      method: GET
+      valid_status_codes: []
+      basic_auth:
+        username: "admin"
+        password: "semantec2026"
+
+  # HTTP checking for specific content
+  http_2xx_with_content:
+    prober: http
+    timeout: 10s
+    http:
+      method: GET
+      valid_status_codes: []
+      fail_if_body_not_matches_regexp:
+        - ".*"
+      fail_if_header_not_matches:
+        - header: Content-Type
+          regexp: 'text/html|application/json'
+
+  # ---------------------------------------------------------------------------
+  # TCP Probes
+  # ---------------------------------------------------------------------------
+  
+  # TCP connect (just check if port is open)
+  tcp_connect:
+    prober: tcp
+    timeout: 5s
+    tcp:
+      preferred_ip_protocol: "ip4"
+
+  # TCP with TLS (for HTTPS, SMTPS, IMAPS, etc.)
+  tcp_connect_tls:
+    prober: tcp
+    timeout: 10s
+    tcp:
+      tls: true
+      tls_config:
+        insecure_skip_verify: true
+      preferred_ip_protocol: "ip4"
+
+  # SSH probe
+  ssh_banner:
+    prober: tcp
+    timeout: 10s
+    tcp:
+      query_response:
+        - expect: "^SSH-2.0-"
+      preferred_ip_protocol: "ip4"
+
+  # SMTP probe
+  smtp_starttls:
+    prober: tcp
+    timeout: 15s
+    tcp:
+      query_response:
+        - expect: "^220 "
+        - send: "EHLO semantec.lan"
+        - expect: "^250-STARTTLS"
+        - send: "STARTTLS"
+        - expect: "^220"
+        - starttls: true
+        - send: "QUIT"
+
+  # IMAP probe
+  imap_starttls:
+    prober: tcp
+    timeout: 10s
+    tcp:
+      query_response:
+        - expect: "^\\* OK"
+        - send: ". CAPABILITY"
+        - expect: "^\\* CAPABILITY"
+        - send: ". LOGOUT"
+
+  # PostgreSQL probe
+  postgres_connect:
+    prober: tcp
+    timeout: 5s
+    tcp:
+      query_response:
+        - send: "00"  # Minimal handshake
+      preferred_ip_protocol: "ip4"
+
+  # ---------------------------------------------------------------------------
+  # ICMP Probes (requires NET_RAW capability)
+  # ---------------------------------------------------------------------------
+  
+  icmp:
+    prober: icmp
+    timeout: 5s
+    icmp:
+      preferred_ip_protocol: "ip4"
+
+  icmp_ipv6:
+    prober: icmp
+    timeout: 5s
+    icmp:
+      preferred_ip_protocol: "ip6"
+
+  # ---------------------------------------------------------------------------
+  # DNS Probes
+  # ---------------------------------------------------------------------------
+  
+  # DNS A record lookup
+  dns_a:
+    prober: dns
+    timeout: 5s
+    dns:
+      query_name: "semantec.lan"
+      query_type: "A"
+      valid_rcodes:
+        - NOERROR
+      validate_answer_rrs:
+        fail_if_not_matches_regexp:
+          - "semantec\\.lan\\.\\s+.*\\s+IN\\s+A\\s+192\\.168\\.0\\.22"
+
+  # DNS ANY record lookup
+  dns_any:
+    prober: dns
+    timeout: 5s
+    dns:
+      query_name: "semantec.lan"
+      query_type: "ANY"
+      valid_rcodes:
+        - NOERROR
+
+  # DNS SOA record lookup
+  dns_soa:
+    prober: dns
+    timeout: 5s
+    dns:
+      query_name: "semantec.lan"
+      query_type: "SOA"
+      valid_rcodes:
+        - NOERROR
+
+  # ---------------------------------------------------------------------------
+  # gRPC Probes (for OTEL Collector, Jaeger, etc.)
+  # ---------------------------------------------------------------------------
+  
+  grpc_health:
+    prober: grpc
+    timeout: 10s
+    grpc:
+      tls: false
+      preferred_ip_protocol: "ip4"
+      service: ""  # Empty for general health check
+
+  grpc_health_tls:
+    prober: grpc
+    timeout: 10s
+    grpc:
+      tls: true
+      tls_config:
+        insecure_skip_verify: true
+      preferred_ip_protocol: "ip4"

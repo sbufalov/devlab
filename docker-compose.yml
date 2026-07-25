@@ -1,0 +1,603 @@
+name: semantec
+
+include:
+  - path: ./observability/docker-compose.yml
+  - path: ./storage/docker-compose.yml
+
+# =============================================================================
+# LOGGING TEMPLATE (JSON Driver for Container Logs)
+# =============================================================================
+x-logging: &json
+  driver: "json-file"
+  options:
+    max-size: "4m"
+    max-file: "4"
+    labels: "service,component"
+
+services:
+  # =============================================================================
+  # PERMISSIONS - Fixes directory ownership for all services
+  # =============================================================================
+  permissions:
+    image: alpine:3.22.4
+    container_name: permissions
+    hostname: permissions
+    restart: "no"
+    logging: *json
+    entrypoint: ["/bin/sh", "/permissions.sh"]
+    volumes:
+      - ./permissions.sh:/permissions.sh:ro
+      - /homelab/services:/homelab/services:rw
+      - /homelab/observability:/homelab/observability:rw
+    network_mode: none
+
+  # =============================================================================
+  # DNS SERVER
+  # =============================================================================
+  dns:
+    image: coredns/coredns:1.14.3
+    container_name: dns
+    hostname: dns
+    restart: unless-stopped
+    read_only: true
+    logging: *json
+    command: -conf /etc/coredns/Corefile
+    volumes:
+      - ./Corefile:/etc/coredns/Corefile:ro
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+    networks:
+      - infra
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 32M
+    labels:
+      - "otel.metrics.scrape=true"
+      - "otel.metrics.port=9153"
+      - "otel.metrics.path=/metrics"
+      - "service.name=dns"
+      - "service.component=infrastructure"
+
+  # =============================================================================
+  # REVERSE PROXY (Generates self-signed certificates for *.semantec.lan)
+  # =============================================================================
+  proxy:
+    image: caddy:2.11.3-alpine
+    container_name: proxy
+    hostname: proxy
+    restart: unless-stopped
+    logging: *json
+    cap_add:
+      - NET_BIND_SERVICE
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - /homelab/services/caddy/data:/data:rw
+      - /homelab/services/caddy/config:/config:rw
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - frontend
+      - observability
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:2019/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    labels:
+      - "otel.metrics.scrape=true"
+      - "otel.metrics.port=2019"
+      - "otel.metrics.path=/metrics"
+      - "service.name=proxy"
+      - "service.component=infrastructure"
+
+  # =============================================================================
+  # PORTAINER - Docker Management
+  # =============================================================================
+  portainer:
+    image: portainer/portainer-ce:2.41.1-alpine
+    container_name: portainer
+    hostname: portainer
+    restart: unless-stopped
+    logging: *json
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /homelab/services/portainer/data:/data:rw
+    networks:
+      - infra
+      - frontend
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:9000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=portainer"
+      - "service.component=infrastructure"
+
+  # =============================================================================
+  # WEBSITE
+  # =============================================================================
+  # Low resource usage for static content
+  # Static content served via nginx
+  website:
+    image: nginx:1.31.0-trixie-otel
+    container_name: website
+    hostname: website
+    restart: unless-stopped
+    read_only: true
+    logging: *json
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./html/portal:/usr/share/nginx/portal:ro
+      - ./html/devlab/dist:/usr/share/nginx/devlab:ro
+      - ./html/nginx.conf:/etc/nginx/nginx.conf:ro
+    tmpfs:
+      - /var/cache/nginx:rw,noexec,nosuid,size=64m
+      - /var/run:rw,noexec,nosuid,size=16m
+    networks:
+      - frontend
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 32M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=website"
+      - "service.component=frontend"
+
+  # =============================================================================
+  # GITLAB
+  # =============================================================================
+  # Resource intensive, primary development tool
+  # Self-hosted Git repository manager
+  # SSH available on port 2222
+  gitlab:
+    image: gitlab/gitlab-ce:18.11.7-ce.0
+    container_name: gitlab
+    hostname: gitlab
+    restart: unless-stopped
+    logging: *json
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'https://semantec.lan'
+        gitlab_rails['gitlab_shell_ssh_port'] = 2222
+        nginx['listen_port'] = 80
+        nginx['listen_https'] = false
+
+        # PERFORMANCE OPTIMIZATION (Single Mode)
+        puma['worker_processes'] = 0
+        puma['min_threads'] = 2
+        puma['max_threads'] = 4
+        sidekiq['max_concurrency'] = 5
+
+        # DATABASE LIMITS
+        postgresql['max_connections'] = 128
+        gitlab_rails['db_max_pooling'] = 5
+        postgresql['max_locks_per_transaction'] = 256
+        postgresql['shared_buffers'] = "512MB"
+
+        # DISABLE INTERNAL MONITORING (Using external OTEL instead)
+        prometheus_monitoring['enable'] = false
+        prometheus['enable'] = false
+        alertmanager['enable'] = false
+        node_exporter['enable'] = false
+        redis_exporter['enable'] = false
+        postgres_exporter['enable'] = false
+        gitlab_exporter['enable'] = false
+
+        # DISABLE KUBERNETES & CLOUD
+        gitlab_kas['enable'] = false
+        gitlab_rails['infrastructure_kubernetes_agent_enabled'] = false
+
+        # MATTERMOST CHAT
+        mattermost_external_url 'https://mattermost.semantec.lan'
+        mattermost['enable'] = true
+        mattermost_nginx['listen_port'] = 80
+        mattermost_nginx['listen_https'] = false
+
+        # DOCKER CONTAINER REGISTRY
+        registry_external_url 'https://docker.semantec.lan'
+        registry['enable'] = true
+        gitlab_rails['registry_enabled'] = true
+        registry_nginx['listen_port'] = 80
+        registry_nginx['listen_https'] = false
+
+        # PACKAGE REGISTRY (Conan for C++)
+        gitlab_rails['packages_enabled'] = true
+
+        # GITLAB PAGES
+        # Fixed: Pages uses method syntax for external_url
+        pages_external_url 'https://pages.semantec.lan'
+        gitlab_pages['enable'] = true
+        pages_nginx['listen_port'] = 80
+        pages_nginx['listen_https'] = false
+        gitlab_pages['inplace_chroot'] = true
+
+        # LOG ROTATION
+        logging['svlogd_size'] = 1048576
+        logging['svlogd_num'] = 3
+
+    volumes:
+      - /homelab/services/gitlab/config:/etc/gitlab:rw
+      - /homelab/services/gitlab/data:/var/opt/gitlab:rw
+      - /homelab/observability/gitlab/logs:/var/log/gitlab:rw
+    ports:
+      - "2222:22"
+    networks:
+      - frontend
+    shm_size: 512m
+    deploy:
+      resources:
+        limits:
+          cpus: '6.0'
+          memory: 8G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/-/health"]
+      interval: 60s
+      timeout: 30s
+      retries: 5
+      start_period: 300s
+    labels:
+      - "otel.metrics.scrape=true"
+      - "otel.metrics.port=9090"
+      - "otel.metrics.path=/metrics"
+      - "service.name=gitlab"
+      - "service.component=application"
+
+  # =============================================================================
+  # MAIL SERVER - Full mail server with SMTP/IMAP/POP3
+  # =============================================================================
+  mailserver:
+    image: mailserver/docker-mailserver:15.1.0
+    container_name: mailserver
+    hostname: mailserver
+    domainname: semantec.lan
+    restart: unless-stopped
+    logging: *json
+    depends_on:
+      proxy:
+        condition: service_healthy
+    cap_add:
+      - NET_ADMIN
+    env_file:
+      - ./env/mailserver.env
+    volumes:
+      - /homelab/services/mailserver/data:/var/mail:rw
+      - /homelab/services/mailserver/state:/var/mail-state:rw
+      - /homelab/services/mailserver/config:/tmp/docker-mailserver:rw
+      - /homelab/services/caddy/data:/caddy-certs:ro
+      - ./mail/accounts.cf:/tmp/docker-mailserver/postfix-accounts.cf:ro
+      - ./mail/virtual.cf:/tmp/docker-mailserver/postfix-virtual.cf:ro
+    ports:
+      - "25:25"      # SMTP
+      - "465:465"    # SMTPS
+      - "587:587"    # Submission
+      - "143:143"    # IMAP
+      - "993:993"    # IMAPS
+      - "110:110"    # POP3
+      - "995:995"    # POP3S
+    networks:
+      mail:
+        aliases:
+          - mail.semantec.lan
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "ss -lntp | grep -E ':25|:587|:993'"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=mailserver"
+      - "service.component=mail"
+
+  # =============================================================================
+  # ROUNDCUBE WEBMAIL
+  # =============================================================================
+  # Web-based email client (PHP-FPM backend)
+  webmail:
+    image: roundcube/roundcubemail:latest-fpm
+    container_name: webmail
+    hostname: webmail
+    restart: unless-stopped
+    command: ["/entrypoint.sh"]
+    logging: *json
+    depends_on:
+      mailserver:
+        condition: service_healthy
+    env_file:
+      - ./env/roundcube.env
+    volumes:
+      - ./mail/roundcube.sh:/entrypoint.sh:ro
+      - /homelab/services/roundcube/data:/var/www/html:rw
+      - /homelab/services/roundcube/database:/var/roundcube/db:rw
+      - /homelab/services/caddy/data/caddy/pki/authorities/local:/usr/local/share/ca-certificates/caddy-local:ro
+    networks:
+      - backend
+      - mail
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "pidof php-fpm || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=webmail"
+      - "service.component=mail"
+
+  # Lightweight reverse proxy for Roundcube PHP-FPM
+  roundcube:
+    image: nginx:alpine
+    container_name: roundcube
+    hostname: roundcube
+    restart: unless-stopped
+    read_only: true
+    logging: *json
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      webmail:
+        condition: service_healthy
+    volumes:
+      - ./mail/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - /homelab/services/roundcube/data:/var/www/html:ro
+    tmpfs:
+      - /var/cache/nginx:rw,noexec,nosuid,size=64m
+      - /var/run:rw,noexec,nosuid,size=16m
+    networks:
+      - frontend
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    labels:
+      - "otel.metrics.scrape=true"
+      - "otel.metrics.port=80"
+      - "otel.metrics.path=/metrics"
+      - "service.name=roundcube"
+      - "service.component=mail"
+
+  # =============================================================================
+  # GLANCES - System Monitoring API
+  # =============================================================================
+  glances:
+    image: nicolargo/glances:4.5.4-full
+    container_name: glances
+    hostname: glances
+    restart: unless-stopped
+    pid: host
+    privileged: true
+    environment:
+      - GLANCES_OPT=-w
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - frontend
+      - observability
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=glances"
+      - "service.component=observability"
+
+  # =============================================================================
+  # DASHY - Admin Dashboard & Widgets
+  # =============================================================================
+  dashy:
+    image: lissy93/dashy:4.1.5
+    container_name: dashy
+    hostname: dashy
+    restart: unless-stopped
+    logging: *json
+    environment:
+      - NODE_ENV=production
+      - UID=1000
+      - GID=1000
+      - PORT=8080
+    volumes:
+      - /homelab/services/dashy/config:/app/user-data:rw
+      - ./dashy/icons:/app/public/item-icons/custom:ro
+      - ./dashy/conf.yml:/app/user-data/conf.yml:ro
+    networks:
+      - frontend
+      - observability
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "node", "/app/services/healthcheck.js"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=dashy"
+      - "service.component=infrastructure"
+
+  # =============================================================================
+  # MLFLOW - ML Experiment Tracking
+  # =============================================================================
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v3.12.0
+    container_name: mlflow
+    hostname: mlflow
+    restart: unless-stopped
+    logging: *json
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+    # Install the missing Postgres driver, then start the server
+    command: >
+      sh -c "pip install --no-cache-dir mlflow==2.11.3 psycopg2-binary boto3 &&
+      mlflow server
+      --backend-store-uri postgresql://semantec:grossberg@postgres:5432/mlflow
+      --artifacts-destination s3://mlflow/artifacts
+      --serve-artifacts
+      --workers 2
+      --host 0.0.0.0
+      --port 5000"
+    environment:
+      - AWS_ACCESS_KEY_ID=semantec
+      - AWS_SECRET_ACCESS_KEY=grossberg
+      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
+      - AWS_S3_UPLOAD_BUCKET_NAME=mlflow
+      - AWS_S3_FORCE_PATH_STYLE=true
+      - MLFLOW_S3_IGNORE_TLS=true
+    networks:
+      - storage
+      - frontend
+      - observability
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.25'
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/5000 && echo -e 'GET /health HTTP/1.1\r\nHold:\r\n\r\n' >&3 && exec 3>&- || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      - "otel.metrics.scrape=false"
+      - "service.name=mlflow"
+      - "service.component=ml"
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+networks:
+  # DNS/Admin
+  infra:
+    name: semantec-infra
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+
+  # Proxy <-> User Apps
+  frontend:
+    name: semantec-frontend
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.1.0/24
+  
+  # Workers <-> Proxy
+  backend:
+    name: semantec-backend
+    driver: bridge
+    internal: false
+    ipam:
+      config:
+        - subnet: 172.20.2.0/24
+  
+  # Storage backends (MinIO, PostgreSQL, ClickHouse)
+  storage:
+    name: semantec-storage
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.20.3.0/24
+
+  # Webmail <-> Mailserver
+  mail:
+    name: semantec-mail
+    driver: bridge
+    internal: false
+    ipam:
+      config:
+        - subnet: 172.20.4.0/24
+
+  # Service <-> Observability
+  observability:
+    name: semantec-observability
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.5.0/24

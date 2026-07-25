@@ -1,0 +1,113 @@
+# =============================================================================
+# GRAFANA DATASOURCES CONFIGURATION
+# =============================================================================
+
+apiVersion: 1
+
+datasources:
+  # ---------------------------------------------------------------------------
+  # VICTORIAMETRICS - Primary Metrics Source
+  # ---------------------------------------------------------------------------
+  - name: Metrics (VictoriaMetrics)
+    type: prometheus
+    access: proxy
+    url: http://victoriametrics:8428
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 30s
+      httpMethod: POST
+      prometheusType: Prometheus
+      prometheusVersion: 2.40.0
+      cacheLevel: High
+      incrementalQuerying: true
+      incrementalQueryOverlapWindow: 10m
+      disableRecordingRules: false
+      customQueryParameters: ''
+      exemplarTraceIdDestinations:
+        - name: trace_id
+          datasourceUid: jaeger
+
+  # ---------------------------------------------------------------------------
+  # QRYN - Logs (Loki-compatible)
+  # ---------------------------------------------------------------------------
+  - name: Logs (qryn/cLoki)
+    type: loki
+    access: proxy
+    url: http://qryn:3100
+    editable: false
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        - datasourceUid: jaeger
+          matcherRegex: "trace_id=(\\w+)"
+          name: TraceID
+          url: '$${__value.raw}'
+
+  # ---------------------------------------------------------------------------
+  # JAEGER - Distributed Tracing
+  # ---------------------------------------------------------------------------
+  - name: Traces (Jaeger)
+    type: jaeger
+    uid: jaeger
+    access: proxy
+    url: http://jaeger:16686
+    editable: false
+    jsonData:
+      tracesToLogsV2:
+        datasourceUid: 'logs'
+        spanStartTimeShift: '-1h'
+        spanEndTimeShift: '1h'
+        filterByTraceID: true
+        filterBySpanID: false
+        tags: ['service.name', 'instance']
+      tracesToMetrics:
+        datasourceUid: 'VictoriaMetrics'
+        spanStartTimeShift: '-1h'
+        spanEndTimeShift: '1h'
+        tags: [{ key: 'service.name', value: 'service' }]
+      nodeGraph:
+        enabled: true
+
+  # ---------------------------------------------------------------------------
+  # PYROSCOPE - Continuous Profiling
+  # ---------------------------------------------------------------------------
+  - name: Profilings (Pyroscope)
+    type: grafana-pyroscope-datasource
+    uid: pyroscope
+    access: proxy
+    url: http://pyroscope:4040
+    editable: false
+    jsonData:
+      minStep: '15s'
+
+  # ---------------------------------------------------------------------------
+  # ALERTMANAGER - Alert Management
+  # ---------------------------------------------------------------------------
+  - name: Alerts (AlertManager)
+    type: alertmanager
+    access: proxy
+    url: http://alertmanager:9093
+    editable: false
+    jsonData:
+      implementation: prometheus
+      handleGrafanaManagedAlerts: false
+
+  # ---------------------------------------------------------------------------
+  # CLICKHOUSE - Direct SQL Access (for advanced queries)
+  # ---------------------------------------------------------------------------
+  - name: Queries (ClickHouse)
+    type: grafana-clickhouse-datasource
+    access: proxy
+    url: http://clickhouse:8123
+    editable: false
+    jsonData:
+      server: clickhouse
+      port: 8123
+      protocol: http
+      username: semantec
+      defaultDatabase: semantec
+      secure: false
+      tlsSkipVerify: true
+    secureJsonData:
+      password: grossberg

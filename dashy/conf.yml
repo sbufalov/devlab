@@ -1,0 +1,287 @@
+---
+pageInfo:
+  title: Semantec Infrastructure
+  description: Real-time resource monitoring and service management
+  navLinks:
+    - title: Portal
+      path: https://semantec.lan
+    - title: Grafana
+      path: https://grafana.semantec.lan
+    - title: Status
+      path: https://status.semantec.lan
+
+appConfig:
+  theme: nord-frost
+  layout: auto
+  iconSize: small
+  language: en
+  statusCheck: true
+  statusCheckInterval: 30
+  disableUpdateChecks: true
+  hideComponents:
+    hideHeading: false
+    hideNav: false
+    hideSearch: false
+    hideSettings: false
+    hideFooter: false
+  enableMultiTasking: true
+  defaultOpeningMethod: newtab
+
+sections:
+  # =============================================================================
+  # SYSTEM RESOURCES - COMPACT GRID
+  # =============================================================================
+  - name: System Resources
+    icon: fas fa-gauge-high
+    displayData:
+      collapsed: false
+      cols: 4
+    widgets:
+      # CPU Section
+      - type: gl-current-cpu
+        options:
+          hostname: https://glances.semantec.lan
+          apiVersion: 4
+        updateInterval: 2
+        useGradient: true
+        
+      - type: gl-cpu-history
+        options:
+          hostname: https://glances.semantec.lan
+          apiVersion: 4
+          width: 100%
+        updateInterval: 5
+        
+      - type: gl-system-load
+        options:
+          hostname: https://glances.semantec.lan
+          apiVersion: 4
+        updateInterval: 3
+        
+      - type:  gl-uptime
+        options:
+          hostname: https://glances.semantec.lan
+          apiVersion: 4
+          limit: 5
+        updateInterval: 5
+
+  # =============================================================================
+  # MEMORY & STORAGE - DETAILED VIEW
+  # =============================================================================
+  - name: Memory & Storage
+    icon: fas fa-database
+    displayData:
+      collapsed: false
+      cols: 4
+    widgets:
+      # Memory
+      - type: gl-current-mem
+        options:
+          hostname: https://glances.semantec.lan
+          apiVersion: 4
+        updateInterval: 2
+        useGradient: true
+        
+      - type: gl-swap
+        options:
+          hostname: https://glances.semantec.lan
+          apiVersion: 4
+        updateInterval: 5
+        useGradient: true
+        
+      # Disk Space
+      - type: gl-disk-space
+        options:
+          hostname: https://glances.semantec.lan
+          apiVersion: 4
+        updateInterval: 30
+        
+      - type: gl-disk-io
+        options:
+          hostname: https://glances.semantec.lan
+          apiVersion: 4
+        updateInterval: 5
+
+  # =============================================================================
+  # NETWORK MONITORING - REAL-TIME
+  # =============================================================================
+  - name: Network & Connectivity
+    icon: fas fa-network-wired
+    displayData:
+      collapsed: false
+      cols: 4
+    widgets:
+      - type: gl-network-traffic
+        options:
+          hostname: https://glances.semantec.lan
+          apiVersion: 4
+          limit: 1000
+        updateInterval: 2
+        
+      - type: gl-network-io
+        options:
+          hostname: https://glances.semantec.lan
+          apiVersion: 4
+        updateInterval: 3
+        
+      - type: gl-sensors
+        options:
+          hostname: https://glances.semantec.lan
+          apiVersion: 4
+        updateInterval: 10
+        
+      - type: gl-uptime
+        options:
+          hostname: https://glances.semantec.lan
+          apiVersion: 4
+        updateInterval: 60
+
+  # =============================================================================
+  # CONTAINER METRICS - DOCKER STATS
+  # =============================================================================
+  - name: Container Performance
+    icon: fab fa-docker
+    displayData:
+      collapsed: false
+      cols: 4
+    widgets:
+      - type: gl-docker-stats
+        options:
+          hostname: https://glances.semantec.lan
+          apiVersion: 4
+          limit: 10
+        updateInterval: 3
+        
+      - type: gl-fs
+        options:
+          hostname: https://glances.semantec.lan
+          apiVersion: 4
+        updateInterval: 30
+        
+      - type: gl-raid
+        options:
+          hostname: https://glances.semantec.lan
+          apiVersion: 4
+        updateInterval: 60
+        
+      - type: iframe
+        options:
+          url: https://portainer.semantec.lan/#!/containers
+          frameHeight: 300
+
+  # =============================================================================
+  # SYSTEM HEALTH & ALERTS
+  # =============================================================================
+  - name: System Health
+    icon: fas fa-heartbeat
+    displayData:
+      collapsed: false
+      cols: 3
+    widgets:
+      - type: prometheus-alerts
+        options:
+          prometheusUrl: https://prometheus.semantec.lan
+          showSeverity: true
+          showState: true
+        updateInterval: 10
+        
+      - type: gl-battery
+        options:
+          hostname: https://glances.semantec.lan
+          apiVersion: 4
+        updateInterval: 30
+        
+      - type: iframe
+        options:
+          url: https://alertmanager.semantec.lan
+          frameHeight: 350
+
+  # =============================================================================
+  # OBSERVABILITY STACK
+  # =============================================================================
+  - name: Monitoring & Observability
+    icon: fas fa-chart-line
+    displayData:
+      collapsed: false
+      cols: 4
+    items:
+      - title: Grafana
+        description: Dashboards & Visualization
+        icon: si-grafana
+        url: https://grafana.semantec.lan
+        statusCheck: true
+        
+      - title: Prometheus
+        description: Metrics Database
+        icon: si-prometheus
+        url: https://prometheus.semantec.lan
+        statusCheck: true
+        
+      - title: Loki
+        description: Log Aggregation
+        icon: fas fa-file-alt
+        url: https://grafana.semantec.lan/explore?orgId=1&left=%5B%22now-1h%22,%22now%22,%22Loki%22,%7B%7D%5D
+        statusCheck: false
+
+  # =============================================================================
+  # DEVELOPMENT SERVICES
+  # =============================================================================
+  - name: Development & Collaboration
+    icon: fas fa-code
+    displayData:
+      collapsed: false
+      cols: 4
+    items:
+      - title: GitLab
+        description: Version Control & CI/CD
+        icon: si-gitlab
+        url: https://gitlab.semantec.lan
+        statusCheck: true
+        
+      - title: GitLab Issues
+        description: Task Tracking
+        icon: fas fa-tasks
+        url: https://gitlab.semantec.lan/dashboard/issues
+        
+      - title: Confluence
+        description: Documentation Wiki
+        icon: si-confluence
+        url: https://confluence.semantec.lan
+        statusCheck: true
+        
+      - title: Webmail
+        description: Email Client
+        icon: fas fa-envelope
+        url: https://mail.semantec.lan
+        statusCheck: true
+
+  # =============================================================================
+  # INFRASTRUCTURE MANAGEMENT
+  # =============================================================================
+  - name: Infrastructure
+    icon: fas fa-server
+    displayData:
+      collapsed: false
+      cols: 4
+    items:
+      - title: Portainer
+        description: Container Management
+        icon: si-portainer
+        url: https://portainer.semantec.lan
+        statusCheck: true
+        
+      - title: Caddy Metrics
+        description: Reverse Proxy Stats
+        icon: fas fa-shield-alt
+        url: https://semantec.lan:2019/metrics
+        
+      - title: Glances
+        description: System Monitor Web UI
+        icon: fas fa-tachometer-alt
+        url: https://glances.semantec.lan
+        statusCheck: true
+        
+      - title: CoreDNS
+        description: DNS Server Metrics
+        icon: fas fa-globe
+        url: http://192.168.0.22:9153/metrics

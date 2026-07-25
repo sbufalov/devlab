@@ -1,0 +1,140 @@
+<?xml version="1.0"?>
+<clickhouse>
+    <!-- =================================================================== -->
+    <!-- CLICKHOUSE SERVER CONFIGURATION                                     -->
+    <!-- =================================================================== -->
+
+    <!-- Listen on all interfaces -->
+    <listen_host>::</listen_host>
+
+    <!-- HTTP interface (for qryn and admin) -->
+    <http_port>8123</http_port>
+
+    <!-- Native protocol (for ClickHouse clients) -->
+    <tcp_port>9000</tcp_port>
+
+    <!-- Inter-server communication (not used in single-node) -->
+    <interserver_http_port>9009</interserver_http_port>
+
+    <!-- ================================================================= -->
+    <!-- LOGGING                                                            -->
+    <!-- ================================================================= -->
+    <logger>
+        <level>information</level>
+        <log>/var/log/clickhouse-server/clickhouse-server.log</log>
+        <errorlog>/var/log/clickhouse-server/clickhouse-server.err.log</errorlog>
+        <size>100M</size>
+        <count>3</count>
+        <console>1</console>
+    </logger>
+
+    <!-- ================================================================= -->
+    <!-- QUERY LOG (for debugging slow queries)                            -->
+    <!-- ================================================================= -->
+    <query_log>
+        <database>system</database>
+        <table>query_log</table>
+        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+        <partition_by>toYYYYMM(event_date)</partition_by>
+        <ttl>event_date + INTERVAL 30 DAY</ttl>
+    </query_log>
+
+    <!-- ================================================================= -->
+    <!-- PERFORMANCE SETTINGS                                               -->
+    <!-- ================================================================= -->
+
+    <!-- Maximum memory usage per server (1.6 GB - 80% of 2GB container limit) -->
+    <max_server_memory_usage>1600000000</max_server_memory_usage>
+
+    <!-- Connection limits -->
+    <max_concurrent_queries>100</max_concurrent_queries>
+    <max_connections>1000</max_connections>
+
+    <!-- Compression settings (save disk space) -->
+    <compression>
+        <case>
+            <method>lz4</method>
+        </case>
+    </compression>
+
+    <!-- ================================================================= -->
+    <!-- STORAGE OPTIMIZATION (for SSD)                                     -->
+    <!-- ================================================================= -->
+
+    <!-- Merge tree settings -->
+    <merge_tree>
+        <!-- Maximum number of bytes to use for merge -->
+        <max_bytes_to_merge_at_max_space_in_pool>10737418240</max_bytes_to_merge_at_max_space_in_pool>
+        
+        <!-- Merge parts in background more aggressively on SSD -->
+        <parts_to_delay_insert>150</parts_to_delay_insert>
+        <parts_to_throw_insert>300</parts_to_throw_insert>
+        
+        <!-- Optimize for SSD (reduce write amplification) -->
+        <min_bytes_for_wide_part>10485760</min_bytes_for_wide_part>
+        <min_rows_for_wide_part>0</min_rows_for_wide_part>
+    </merge_tree>
+
+    <!-- Background pool sizes -->
+    <background_pool_size>16</background_pool_size>
+    <background_move_pool_size>8</background_move_pool_size>
+    <background_schedule_pool_size>16</background_schedule_pool_size>
+
+    <!-- ================================================================= -->
+    <!-- RETENTION AND TTL                                                  -->
+    <!-- ================================================================= -->
+
+    <!-- Default TTL for temporary tables -->
+    <default_temporary_table_ttl>86400</default_temporary_table_ttl>
+
+    <!-- ================================================================= -->
+    <!-- PROMETHEUS METRICS                                                 -->
+    <!-- ================================================================= -->
+    <prometheus>
+        <endpoint>/metrics</endpoint>
+        <port>9363</port>
+        <metrics>true</metrics>
+        <events>false</events>
+        <errors>false</errors>
+        <asynchronous_metrics>false</asynchronous_metrics>
+    </prometheus>
+
+    <!-- ================================================================= -->
+    <!-- SECURITY                                                           -->
+    <!-- ================================================================= -->
+
+    <!-- Allow only specific networks (add Docker networks) -->
+    <networks>
+        <ip>::/0</ip>
+    </networks>
+
+    <!-- Disable remote access (only via Docker networks) -->
+    <listen_try>1</listen_try>
+    <listen_reuse_port>0</listen_reuse_port>
+
+    <!-- ================================================================= -->
+    <!-- TIMEZONE                                                           -->
+    <!-- ================================================================= -->
+    <timezone>UTC</timezone>
+
+    <!-- ================================================================= -->
+    <!-- REMOTE SERVERS (for distributed queries - not used in single-node) -->
+    <!-- ================================================================= -->
+    <!-- <remote_servers></remote_servers> -->
+
+    <!-- ================================================================= -->
+    <!-- MACROS (for replication - not used in single-node)                 -->
+    <!-- ================================================================= -->
+    <!-- <macros></macros> -->
+
+    <!-- ================================================================= -->
+    <!-- BUILT-IN DICTIONARIES                                              -->
+    <!-- ================================================================= -->
+    <builtin_dictionaries_reload_interval>3600</builtin_dictionaries_reload_interval>
+
+    <!-- ================================================================= -->
+    <!-- FORMAT SCHEMAS (for importing data)                                -->
+    <!-- ================================================================= -->
+    <format_schema_path>/var/lib/clickhouse/format_schemas/</format_schema_path>
+
+</clickhouse>

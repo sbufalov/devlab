@@ -1,0 +1,522 @@
+# =============================================================================
+# OPENTELEMETRY COLLECTOR CONFIGURATION
+# =============================================================================
+# Version: 0.152.1
+# Documentation: https://opentelemetry.io/docs/collector/configuration/
+
+# =============================================================================
+# EXTENSIONS - Additional Capabilities
+# =============================================================================
+extensions:
+  # Health check endpoint for container orchestration
+  health_check:
+    endpoint: 0.0.0.0:13133
+    path: /
+    check_collector_pipeline:
+      enabled: true
+      interval: 5m
+      exporter_failure_threshold: 5
+
+  # Performance profiling
+  pprof:
+    endpoint: 0.0.0.0:1777
+
+  # zPages for interactive debugging
+  zpages:
+    endpoint: 0.0.0.0:55679
+
+# =============================================================================
+# RECEIVERS - Data Ingestion
+# =============================================================================
+receivers:
+  # -------------------------------------------------------------------------
+  # OTLP - OpenTelemetry Protocol (Primary Ingestion)
+  # -------------------------------------------------------------------------
+  otlp:
+    protocols:
+      # gRPC endpoint for high-performance ingestion
+      grpc:
+        endpoint: 0.0.0.0:4317
+        max_recv_msg_size_mib: 16
+        max_concurrent_streams: 100
+        read_buffer_size: 524288
+        write_buffer_size: 524288
+        keepalive:
+          server_parameters:
+            max_connection_idle: 11s
+            max_connection_age: 30s
+            max_connection_age_grace: 5s
+            time: 30s
+            timeout: 5s
+          enforcement_policy:
+            min_time: 10s
+            permit_without_stream: true
+
+      # HTTP endpoint for easier client integration
+      http:
+        endpoint: 0.0.0.0:4318
+        cors:
+          allowed_origins:
+            - "https://*.semantec.lan"
+          max_age: 7200
+
+  # -------------------------------------------------------------------------
+  # Prometheus - Legacy Metrics Scraping (Bridge to OTEL)
+  # -------------------------------------------------------------------------
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'docker-autodiscovery'
+          docker_sd_configs:
+            - host: unix:///var/run/docker.sock
+          metric_relabel_configs:
+            - source_labels: [__name__]
+              regex: '(?i)^clickhouse.*'
+              action: drop
+            - source_labels: [__name__]
+              regex: '^(up|scrape_.*)'
+              action: drop
+          relabel_configs:
+            # Only scrape containers with 'otel.metrics.scrape=true'
+            - source_labels: [__meta_docker_container_label_otel_metrics_scrape]
+              regex: 'true'
+              action: keep
+            # Extract port dynamically
+            - source_labels: [__meta_docker_container_label_otel_metrics_port]
+              action: replace
+              target_label: __tmp_port
+            # Construct address
+            - source_labels: [__address__, __tmp_port]
+              regex: '([^:]+)(?::\d+)?;(\d+)'
+              replacement: $1:$2
+              target_label: __address__
+              action: replace
+            # Extract custom scrape path (default to /metrics)
+            - source_labels: [__meta_docker_container_label_otel_metrics_path]
+              action: replace
+              target_label: __metrics_path__
+              regex: '(.+)'
+            # Extract custom service names and components
+            - source_labels: [__meta_docker_container_label_service_name]
+              action: replace
+              target_label: service
+            - source_labels: [__meta_docker_container_label_service_component]
+              action: replace
+              target_label: component
+            - source_labels: [__meta_docker_container_name]
+              regex: '/(.*)'
+              action: replace
+              target_label: container
+            # Redirect the scrape to the host gateway for `node-exporter`
+            - source_labels: [service]
+              regex: node-exporter
+              replacement: host.docker.internal:9100
+              target_label: __address__
+
+        # Blackbox - HTTP Probes
+        - job_name: 'blackbox-http'
+          metrics_path: /probe
+          params:
+            module: [http_2xx_ssl]
+          static_configs:
+            - targets:
+                # Infrastructure
+                - https://web.semantec.lan
+                - https://portainer.semantec.lan
+                - https://glances.semantec.lan
+                - https://dashy.semantec.lan
+                
+                # Applications
+                - https://gitlab.semantec.lan
+                - https://confluence.semantec.lan
+                - https://webmail.semantec.lan
+                
+                # Observability
+                - https://grafana.semantec.lan
+                - https://victoria.semantec.lan
+                - https://jaeger.semantec.lan
+                - https://qryn.semantec.lan
+                - https://pyroscope.semantec.lan
+                - https://alertmanager.semantec.lan
+                - https://status.semantec.lan
+                
+                # Storage
+                - https://minio.semantec.lan
+                - https://clickhouse.semantec.lan
+                
+                # ML/AI
+                - https://mlflow.semantec.lan
+          
+          relabel_configs:
+            - source_labels: [__address__]
+              target_label: __param_target
+            - source_labels: [__param_target]
+              target_label: instance
+            - target_label: __address__
+              replacement: blackbox-exporter:9115
+
+        # Blackbox - TCP probes
+        - job_name: 'blackbox-tcp'
+          metrics_path: /probe
+          params:
+            module: [tcp_connect]
+          static_configs:
+            - targets:
+                - gitlab:22          # SSH
+                - mailserver:25      # SMTP
+                - mailserver:587     # Submission
+                - mailserver:993     # IMAPS
+                - postgres:5432      # PostgreSQL
+                - postgres:5432      # PostgreSQL (MLflow)
+                - clickhouse:9000    # ClickHouse native
+          
+          relabel_configs:
+            - source_labels: [__address__]
+              target_label: __param_target
+            - source_labels: [__param_target]
+              target_label: instance
+            - target_label: __address__
+              replacement: blackbox-exporter:9115
+
+        # Blackbox - DNS probes
+        - job_name: 'blackbox-dns'
+          metrics_path: /probe
+          params:
+            module: [dns_a]
+          static_configs:
+            - targets:
+                - semantec.lan
+                - grafana.semantec.lan
+                - gitlab.semantec.lan
+          
+          relabel_configs:
+            - source_labels: [__address__]
+              target_label: __param_target
+            - source_labels: [__param_target]
+              target_label: instance
+            - target_label: __address__
+              replacement: blackbox-exporter:9115
+
+        # Blackbox - ICMP probes (ping)
+        - job_name: 'blackbox-icmp'
+          metrics_path: /probe
+          params:
+            module: [icmp]
+          static_configs:
+            - targets:
+                - 192.168.0.22    # Host
+                - 8.8.8.8         # Google DNS
+                - 1.1.1.1         # Cloudflare DNS
+          
+          relabel_configs:
+            - source_labels: [__address__]
+              target_label: __param_target
+            - source_labels: [__param_target]
+              target_label: instance
+            - target_label: __address__
+              replacement: blackbox-exporter:9115
+
+  # -------------------------------------------------------------------------
+  # Host Metrics - System-level Observability
+  # -------------------------------------------------------------------------
+  host_metrics:
+    collection_interval: 30s
+    scrapers:
+      cpu:
+        metrics:
+          system.cpu.utilization:
+            enabled: true
+      memory:
+        metrics:
+          system.memory.utilization:
+            enabled: true
+      disk:
+        metrics:
+          system.disk.io:
+            enabled: true
+          system.disk.operations:
+            enabled: true
+      filesystem:
+        metrics:
+          system.filesystem.utilization:
+            enabled: true
+      load:
+      network:
+        metrics:
+          system.network.io:
+            enabled: true
+      paging:
+        metrics:
+          system.paging.utilization:
+            enabled: true
+
+  # -------------------------------------------------------------------------
+  # Docker Stats - Container Resource Usage
+  # -------------------------------------------------------------------------
+  docker_stats:
+    endpoint: unix:///var/run/docker.sock
+    collection_interval: 30s
+    timeout: 20s
+    container_labels_to_metric_labels:
+      service.name: service
+      service.component: component
+    excluded_images:
+      - 'permissions'
+      - 'minio-init'
+
+  # -------------------------------------------------------------------------
+  # File Logs - Container JSON Logs
+  # -------------------------------------------------------------------------
+  filelog:
+    include:
+      - /var/lib/docker/containers/*/*.log
+    include_file_name: false
+    include_file_path: true
+    operators:
+      # Parse the Docker JSON format
+      - type: json_parser
+        parse_to: body
+      # Map Docker injected labels (from docker-compose x-logging) to OTel resources
+      - type: move
+        from: body.attrs.service
+        to: resource["service"]
+      - type: move
+        from: body.attrs.component
+        to: resource["component"]
+      - type: move
+        from: body.stream
+        to: attributes["log.stream"]
+      # Extract time and move actual log message to standard OTel body
+      - type: time_parser
+        from: body.time
+        parse_from: body.time
+        layout: '%Y-%m-%dT%H:%M:%S.%LZ'
+      - type: move
+        from: body.log
+        to: body
+
+# =============================================================================
+# PROCESSORS - Data Transformation & Enhancement
+# =============================================================================
+processors:
+  # -------------------------------------------------------------------------
+  # Batch - Improves compression and reduces requests
+  # -------------------------------------------------------------------------
+  batch:
+    timeout: 10s
+    send_batch_size: 1024
+    send_batch_max_size: 2048
+
+  # -------------------------------------------------------------------------
+  # Memory Limiter - Prevents OOM
+  # -------------------------------------------------------------------------
+  memory_limiter:
+    check_interval: 5s
+    limit_mib: 1536
+    spike_limit_mib: 512
+
+  # -------------------------------------------------------------------------
+  # Resource - Add standard attributes
+  # -------------------------------------------------------------------------
+  resource:
+    attributes:
+      - key: namespace
+        value: semantec
+        action: insert
+      - key: cluster
+        value: homelab
+        action: insert
+      - key: container
+        from_attribute: container.name
+        action: insert
+
+  # -------------------------------------------------------------------------
+  # Resource Detection - Auto-detect host info
+  # -------------------------------------------------------------------------
+  resourcedetection:
+    detectors: [env, system, docker]
+    timeout: 5s
+    override: false
+
+  # -------------------------------------------------------------------------
+  # Attributes - Enrich telemetry data
+  # -------------------------------------------------------------------------
+  attributes:
+    actions:
+      # Add ML-specific attributes for future instrumentation
+      - key: ml.framework
+        action: insert
+        value: "unknown"
+      # Add network location
+      - key: net.host.name
+        action: insert
+        value: "homelab.semantec.lan"
+
+  # -------------------------------------------------------------------------
+  # Filter - Drop unwanted metrics (Optimized for NVMe Lifetime Tracking)
+  # -------------------------------------------------------------------------
+  filter/drop_noisy_metrics:
+    error_mode: ignore
+    metrics:
+      metric:
+        - 'IsMatch(name, "(?i).*clickhouse.*")'
+        - 'IsMatch(name, "^container_tasks_state.*")'
+        - 'IsMatch(name, "^container_network_tcp.*")'
+        - 'IsMatch(name, "^container_network_udp.*")'
+        - 'IsMatch(name, "^container_blockio_io_merged.*")'
+        - 'IsMatch(name, "^container_blockio_io_queued.*")'
+        - 'IsMatch(name, "^container_blockio_io_wait.*")'
+        - 'IsMatch(name, "^container_blockio_io_time.*")'
+        - 'name == "up"'
+        - 'IsMatch(name, "^scrape_.*")'
+
+  # -------------------------------------------------------------------------
+  # Metric Transform - Rename/aggregate metrics (Unified for Docker Stats)
+  # -------------------------------------------------------------------------
+  metrics_transform:
+    transforms:
+      # 2. Add resource metadata source indicator
+      - include: container_.*
+        match_type: regexp
+        action: update
+        operations:
+          - action: add_label
+            new_label: source
+            new_value: docker
+
+# =============================================================================
+# EXPORTERS - Data Output Destinations
+# =============================================================================
+exporters:
+  # -------------------------------------------------------------------------
+  # VictoriaMetrics - Metrics Storage
+  # -------------------------------------------------------------------------
+  prometheusremotewrite:
+    endpoint: http://victoriametrics:8428/api/v1/write
+    tls:
+      insecure: true
+    timeout: 30s
+    retry_on_failure:
+      enabled: true
+    remote_write_queue:
+      enabled: true
+      num_consumers: 10
+      queue_size: 5000
+    resource_to_telemetry_conversion:
+      enabled: true
+
+  # -------------------------------------------------------------------------
+  # qryn/cLoki - Logs Storage (via OTLP)
+  # -------------------------------------------------------------------------
+  otlp_http/qryn:
+    endpoint: http://qryn:3100
+    tls:
+      insecure: true
+    timeout: 30s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+    sending_queue:
+      enabled: true
+      num_consumers: 5
+      queue_size: 1000
+
+  # -------------------------------------------------------------------------
+  # Jaeger - Traces Storage
+  # -------------------------------------------------------------------------
+  otlp_grpc/jaeger:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+    timeout: 30s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+    sending_queue:
+      enabled: true
+      num_consumers: 10
+      queue_size: 1000
+
+  # -------------------------------------------------------------------------
+  # Debug - Console output (disable in production)
+  # -------------------------------------------------------------------------
+  # logging:
+  #   loglevel: debug
+  #   sampling_initial: 5
+  #   sampling_thereafter: 200
+
+# =============================================================================
+# SERVICE PIPELINES - Data Flow Configuration
+# =============================================================================
+service:
+  # Extension startup order
+  extensions: [health_check, pprof, zpages]
+
+  pipelines:
+    # -----------------------------------------------------------------------
+    # METRICS PIPELINE
+    # -----------------------------------------------------------------------
+    metrics:
+      receivers:
+        - otlp
+        - prometheus
+        - host_metrics
+        - docker_stats
+      processors:
+        - memory_limiter
+        - resourcedetection
+        - resource
+        - attributes
+        - filter/drop_noisy_metrics
+        - metrics_transform
+        - batch
+      exporters:
+        - prometheusremotewrite
+
+    # -----------------------------------------------------------------------
+    # TRACES PIPELINE
+    # -----------------------------------------------------------------------
+    traces:
+      receivers:
+        - otlp
+      processors:
+        - memory_limiter
+        - resourcedetection
+        - resource
+        - attributes
+        - batch
+      exporters:
+        - otlp_grpc/jaeger
+
+    # -----------------------------------------------------------------------
+    # LOGS PIPELINE
+    # -----------------------------------------------------------------------
+    logs:
+      receivers:
+        - otlp
+        - filelog
+      processors:
+        - memory_limiter
+        - resourcedetection
+        - resource
+        - batch
+      exporters:
+        - otlp_http/qryn
+
+  # Telemetry configuration for OTEL Collector itself
+  telemetry:
+    logs:
+      level: info
+      encoding: json
+    metrics:
+      level: detailed
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888
